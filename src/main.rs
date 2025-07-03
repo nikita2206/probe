@@ -22,6 +22,9 @@ struct Cli {
     #[arg(short = 't', long, help = "Filter by file type (extension)")]
     filetype: Option<String>,
     
+    #[arg(short = 'n', long = "num-results", help = "Number of results to return", default_value = "10")]
+    num_results: usize,
+    
     #[arg(help = "Search query")]
     query: Option<String>,
 }
@@ -50,16 +53,40 @@ fn main() -> Result<()> {
         None => {
             if let Some(query) = cli.query {
                 engine.ensure_index_updated()?;
-                let results = engine.search(&query, None, cli.filetype.as_deref())?;
+                let results = engine.search(&query, Some(cli.num_results), cli.filetype.as_deref())?;
                 
                 if results.is_empty() {
                     println!("No results found for '{}'", query);
                 } else {
                     println!("Found {} results for '{}':\n", results.len(), query);
                     for (i, result) in results.iter().enumerate() {
-                        println!("{}. {} (score: {:.2})", 
+                        // Format chunk information
+                        let chunk_info = if let (Some(chunk_type), Some(chunk_name)) = (&result.chunk_type, &result.chunk_name) {
+                            if !chunk_name.is_empty() {
+                                format!(" - {} {}", chunk_type, chunk_name)
+                            } else {
+                                format!(" - {}", chunk_type)
+                            }
+                        } else {
+                            String::new()
+                        };
+                        
+                        // Format line information
+                        let line_info = if let (Some(start), Some(end)) = (result.start_line, result.end_line) {
+                            if start == end {
+                                format!(" (line {})", start + 1)
+                            } else {
+                                format!(" (lines {}-{})", start + 1, end + 1)
+                            }
+                        } else {
+                            String::new()
+                        };
+                        
+                        println!("{}. {}{}{} (score: {:.2})", 
                             i + 1, 
-                            result.path.display(), 
+                            result.path.display(),
+                            chunk_info,
+                            line_info,
                             result.score
                         );
                         if !result.snippet.is_empty() {
