@@ -1,0 +1,9 @@
+{
+  "database_url": "localhost:5432",
+  "debug": true,
+  "features": {
+    "logging": true,
+    "caching": false
+  },
+  "timeout_seconds": 30
+}
