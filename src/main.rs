@@ -2,6 +2,7 @@ mod file_scanner;
 mod search_index;
 mod metadata;
 mod search_engine;
+mod config;
 
 use clap::{Parser, Subcommand};
 use anyhow::Result;
@@ -36,7 +37,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
     
     let root_dir = cli.directory.unwrap_or_else(|| ".".to_string());
-    let engine = SearchEngine::new(&root_dir);
+    let engine = SearchEngine::new(&root_dir)?;
     
     match cli.command {
         Some(Commands::Rebuild) => {

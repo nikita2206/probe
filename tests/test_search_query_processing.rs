@@ -1,4 +1,5 @@
 use codesearch::search_index::SearchIndex;
+use tantivy::tokenizer::Language;
 use std::fs;
 use tempfile::TempDir;
 
@@ -8,7 +9,7 @@ fn test_search_snippet_quality() {
     let index_dir = temp_dir.path().join("test_index");
     
     // Create a search index
-    let mut index = SearchIndex::new(&index_dir).unwrap();
+    let mut index = SearchIndex::new(&index_dir, Language::English, true).unwrap();
     
     // Create test content with search terms later in the file
     let test_content = r#"// This is the beginning of a file with lots of content
@@ -81,7 +82,7 @@ impl DataProcessor {
 fn test_tantivy_query_parsing() {
     let temp_dir = TempDir::new().unwrap();
     let index_dir = temp_dir.path().join("test_index");
-    let mut index = SearchIndex::new(&index_dir).unwrap();
+    let mut index = SearchIndex::new(&index_dir, Language::English, true).unwrap();
     
     let content = "This function handles archive local cache operations";
     let test_file = temp_dir.path().join("test.rs");

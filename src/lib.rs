@@ -2,6 +2,7 @@ pub mod file_scanner;
 pub mod search_index;
 pub mod metadata;
 pub mod search_engine;
+pub mod config;
 
 #[cfg(test)]
 mod tests {

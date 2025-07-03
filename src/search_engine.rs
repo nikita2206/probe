@@ -3,24 +3,28 @@ use anyhow::Result;
 use crate::file_scanner::FileScanner;
 use crate::search_index::{SearchIndex, SearchResult};
 use crate::metadata::IndexMetadata;
+use crate::config::Config;
 
 pub struct SearchEngine {
     root_dir: PathBuf,
     index_dir: PathBuf,
     metadata_path: PathBuf,
+    config: Config,
 }
 
 impl SearchEngine {
-    pub fn new<P: AsRef<Path>>(root_dir: P) -> Self {
+    pub fn new<P: AsRef<Path>>(root_dir: P) -> Result<Self> {
         let root_path = root_dir.as_ref().to_path_buf();
         let index_dir = root_path.join(".codesearch");
         let metadata_path = index_dir.join("metadata.bin");
+        let config = Config::load_from_dir(&root_path)?;
         
-        Self {
+        Ok(Self {
             root_dir: root_path,
             index_dir,
             metadata_path,
-        }
+            config,
+        })
     }
     
     pub fn ensure_index_updated(&self) -> Result<()> {
@@ -33,9 +37,10 @@ impl SearchEngine {
         if !changed_files.is_empty() {
             println!("Indexing {} changed files...", changed_files.len());
             
-            let mut index = match SearchIndex::open(&self.index_dir) {
+            let language = self.config.get_language()?;
+            let mut index = match SearchIndex::open(&self.index_dir, language, self.config.stemming.enabled) {
                 Ok(index) => index,
-                Err(_) => SearchIndex::new(&self.index_dir)?,
+                Err(_) => SearchIndex::new(&self.index_dir, language, self.config.stemming.enabled)?,
             };
             
             index.index_files(&changed_files)?;
@@ -63,7 +68,8 @@ impl SearchEngine {
         let scanner = FileScanner::new(&self.root_dir);
         let files = scanner.scan_files()?;
         
-        let mut index = SearchIndex::new(&self.index_dir)?;
+        let language = self.config.get_language()?;
+        let mut index = SearchIndex::new(&self.index_dir, language, self.config.stemming.enabled)?;
         index.index_files(&files)?;
         
         let mut metadata = IndexMetadata::new();
@@ -77,7 +83,8 @@ impl SearchEngine {
     }
     
     pub fn search(&self, query: &str, limit: Option<usize>, filetype: Option<&str>) -> Result<Vec<SearchResult>> {
-        let index = SearchIndex::open(&self.index_dir)?;
+        let language = self.config.get_language()?;
+        let index = SearchIndex::open(&self.index_dir, language, self.config.stemming.enabled)?;
         let results = index.search(query, limit.unwrap_or(20), filetype)?;
         Ok(results)
     }

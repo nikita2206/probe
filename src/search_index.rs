@@ -2,12 +2,13 @@ use std::path::{Path, PathBuf};
 use std::fs;
 use anyhow::Result;
 use tantivy::{
-    schema::{Schema, STORED, TEXT, Value},
+    schema::{Schema, STORED, TEXT, Value, TextFieldIndexing, IndexRecordOption, TextOptions},
     Index, IndexWriter, TantivyDocument,
     collector::TopDocs,
     query::{QueryParser, TermQuery, BooleanQuery, Occur},
     SnippetGenerator, Snippet,
     Term,
+    tokenizer::{TextAnalyzer, RegexTokenizer, LowerCaser, RemoveLongFilter, Stemmer, Language},
 };
 use atty::Stream;
 
@@ -26,15 +27,47 @@ pub struct SearchResult {
 }
 
 impl SearchIndex {
-    pub fn new<P: AsRef<Path>>(index_dir: P) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(index_dir: P, language: Language, stemming_enabled: bool) -> Result<Self> {
         let mut schema_builder = Schema::builder();
         let path_field = schema_builder.add_text_field("path", STORED);
-        let content_field = schema_builder.add_text_field("content", TEXT | STORED);
+        
+        // Create custom tokenizer for camel case splitting with optional stemming
+        let camel_case_tokenizer = if stemming_enabled {
+            TextAnalyzer::builder(
+                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap()
+            )
+            .filter(RemoveLongFilter::limit(40))
+            .filter(LowerCaser)
+            .filter(Stemmer::new(language))
+            .build()
+        } else {
+            TextAnalyzer::builder(
+                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap()
+            )
+            .filter(RemoveLongFilter::limit(40))
+            .filter(LowerCaser)
+            .build()
+        };
+        
+        // Configure content field with custom tokenizer
+        let content_field_indexing = TextFieldIndexing::default()
+            .set_tokenizer("camel_case")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions);
+        
+        let content_field_options = TextOptions::default()
+            .set_indexing_options(content_field_indexing)
+            .set_stored();
+        
+        let content_field = schema_builder.add_text_field("content", content_field_options);
         let filetype_field = schema_builder.add_text_field("filetype", TEXT | STORED);
         let schema = schema_builder.build();
         
         fs::create_dir_all(&index_dir)?;
         let index = Index::create_in_dir(&index_dir, schema.clone())?;
+        
+        // Register the custom tokenizer
+        index.tokenizers()
+            .register("camel_case", camel_case_tokenizer);
         
         Ok(Self {
             index,
@@ -44,12 +77,33 @@ impl SearchIndex {
         })
     }
     
-    pub fn open<P: AsRef<Path>>(index_dir: P) -> Result<Self> {
+    pub fn open<P: AsRef<Path>>(index_dir: P, language: Language, stemming_enabled: bool) -> Result<Self> {
         let index = Index::open_in_dir(&index_dir)?;
         let schema = index.schema();
         let path_field = schema.get_field("path")?;
         let content_field = schema.get_field("content")?;
         let filetype_field = schema.get_field("filetype")?;
+        
+        // Register the custom tokenizer for existing indexes
+        let camel_case_tokenizer = if stemming_enabled {
+            TextAnalyzer::builder(
+                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap()
+            )
+            .filter(RemoveLongFilter::limit(40))
+            .filter(LowerCaser)
+            .filter(Stemmer::new(language))
+            .build()
+        } else {
+            TextAnalyzer::builder(
+                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap()
+            )
+            .filter(RemoveLongFilter::limit(40))
+            .filter(LowerCaser)
+            .build()
+        };
+        
+        index.tokenizers()
+            .register("camel_case", camel_case_tokenizer);
         
         Ok(Self {
             index,
