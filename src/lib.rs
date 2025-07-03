@@ -3,6 +3,7 @@ pub mod search_index;
 pub mod metadata;
 pub mod search_engine;
 pub mod config;
+pub mod code_chunker;
 
 #[cfg(test)]
 mod tests {

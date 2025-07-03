@@ -84,8 +84,8 @@ impl SearchEngine {
     
     pub fn search(&self, query: &str, limit: Option<usize>, filetype: Option<&str>) -> Result<Vec<SearchResult>> {
         let language = self.config.get_language()?;
-        let index = SearchIndex::open(&self.index_dir, language, self.config.stemming.enabled)?;
-        let results = index.search(query, limit.unwrap_or(20), filetype)?;
+        let mut index = SearchIndex::open(&self.index_dir, language, self.config.stemming.enabled)?;
+        let results = index.search(query, limit.unwrap_or(5), filetype)?;
         Ok(results)
     }
     

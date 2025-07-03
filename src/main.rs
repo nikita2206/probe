@@ -3,6 +3,7 @@ mod search_index;
 mod metadata;
 mod search_engine;
 mod config;
+mod code_chunker;
 
 use clap::{Parser, Subcommand};
 use anyhow::Result;

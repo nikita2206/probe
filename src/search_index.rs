@@ -11,12 +11,14 @@ use tantivy::{
     tokenizer::{TextAnalyzer, RegexTokenizer, LowerCaser, RemoveLongFilter, Stemmer, Language},
 };
 use atty::Stream;
+use crate::code_chunker::{CodeChunker, ChunkType};
 
 pub struct SearchIndex {
     index: Index,
     path_field: tantivy::schema::Field,
     content_field: tantivy::schema::Field,
     filetype_field: tantivy::schema::Field,
+    code_chunker: CodeChunker,
 }
 
 #[derive(Debug)]
@@ -69,11 +71,14 @@ impl SearchIndex {
         index.tokenizers()
             .register("camel_case", camel_case_tokenizer);
         
+        let code_chunker = CodeChunker::new()?;
+        
         Ok(Self {
             index,
             path_field,
             content_field,
             filetype_field,
+            code_chunker,
         })
     }
     
@@ -105,11 +110,14 @@ impl SearchIndex {
         index.tokenizers()
             .register("camel_case", camel_case_tokenizer);
         
+        let code_chunker = CodeChunker::new()?;
+        
         Ok(Self {
             index,
             path_field,
             content_field,
             filetype_field,
+            code_chunker,
         })
     }
     
@@ -145,7 +153,7 @@ impl SearchIndex {
         Ok(())
     }
     
-    pub fn search(&self, query_str: &str, limit: usize, filetype: Option<&str>) -> Result<Vec<SearchResult>> {
+    pub fn search(&mut self, query_str: &str, limit: usize, filetype: Option<&str>) -> Result<Vec<SearchResult>> {
         let reader = self.index
             .reader_builder()
             .try_into()?;
@@ -183,9 +191,13 @@ impl SearchIndex {
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
             
-            // Use Tantivy to find matches, then render ourselves
-            let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
-            let snippet_text = self.render_snippet_with_terminal_colors(&snippet);
+            // Use code chunking for better snippets
+            let snippet_text = self.generate_code_aware_snippet(&PathBuf::from(path_text), &retrieved_doc, &snippet_generator)
+                .unwrap_or_else(|_| {
+                    // Fallback to original snippet generation
+                    let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
+                    self.render_snippet_with_terminal_colors(&snippet)
+                });
             
             results.push(SearchResult {
                 path: PathBuf::from(path_text),
@@ -246,5 +258,224 @@ impl SearchIndex {
         result
     }
     
+    fn generate_code_aware_snippet(
+        &mut self,
+        file_path: &Path,
+        doc: &TantivyDocument,
+        snippet_generator: &SnippetGenerator,
+    ) -> Result<String> {
+        let content = doc
+            .get_first(self.content_field)
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        
+        // Get code chunks
+        let chunks = self.code_chunker.chunk_code(file_path, content)?;
+        
+        // If no chunks found (unsupported language), use original snippet
+        if chunks.is_empty() || (chunks.len() == 1 && chunks[0].chunk_type == ChunkType::Other) {
+            let snippet = snippet_generator.snippet_from_doc(doc);
+            return Ok(self.render_snippet_with_terminal_colors(&snippet));
+        }
+        
+        // Find chunks that contain matches, prioritizing methods over classes
+        let mut matching_chunks = Vec::new();
+        let mut seen_chunks = std::collections::HashSet::new();
+        
+        for chunk in chunks {
+            // Skip if we've already seen this exact chunk (same name, type, and range)
+            let chunk_key = (chunk.name.clone(), chunk.chunk_type.clone(), chunk.start_byte, chunk.end_byte);
+            if seen_chunks.contains(&chunk_key) {
+                continue;
+            }
+            
+            // Create a temporary document with just this chunk's content
+            let mut temp_doc = TantivyDocument::new();
+            temp_doc.add_text(self.content_field, &chunk.content);
+            
+            // Generate snippet for this chunk
+            let snippet = snippet_generator.snippet_from_doc(&temp_doc);
+            
+            // Check if this chunk has any highlighted text (i.e., contains matches)
+            if !snippet.highlighted().is_empty() {
+                matching_chunks.push((chunk, snippet));
+                seen_chunks.insert(chunk_key);
+            }
+        }
+        
+        // If no matching chunks found, fallback to original snippet
+        if matching_chunks.is_empty() {
+            let snippet = snippet_generator.snippet_from_doc(doc);
+            return Ok(self.render_snippet_with_terminal_colors(&snippet));
+        }
+        
+        // Sort by priority: methods/functions first, then classes/structs
+        matching_chunks.sort_by(|a, b| {
+            let priority_a = match a.0.chunk_type {
+                ChunkType::Method | ChunkType::Function => 0,
+                ChunkType::Class | ChunkType::Struct | ChunkType::Interface => 1,
+                ChunkType::Module => 2,
+                ChunkType::Other => 3,
+            };
+            let priority_b = match b.0.chunk_type {
+                ChunkType::Method | ChunkType::Function => 0,
+                ChunkType::Class | ChunkType::Struct | ChunkType::Interface => 1,
+                ChunkType::Module => 2,
+                ChunkType::Other => 3,
+            };
+            priority_a.cmp(&priority_b).then_with(|| a.0.start_line.cmp(&b.0.start_line))
+        });
+        
+        // Render matching chunks, showing full method bodies
+        let mut result = String::new();
+        let use_colors = atty::is(Stream::Stdout);
+        let chunk_separator = if use_colors {
+            "\n\x1b[36m───\x1b[0m\n" // Cyan separator
+        } else {
+            "\n---\n"
+        };
+        
+        for (i, (chunk, _snippet)) in matching_chunks.iter().enumerate() {
+            if i > 0 {
+                result.push_str(chunk_separator);
+            }
+            
+            // Add chunk header with name and type
+            if use_colors {
+                result.push_str(&format!("\x1b[32m{:?}\x1b[0m ", chunk.chunk_type));
+                if !chunk.name.is_empty() {
+                    result.push_str(&format!("\x1b[1m{}\x1b[0m", chunk.name));
+                }
+                result.push_str(&format!(" \x1b[90m(lines {}-{})\x1b[0m\n", 
+                    chunk.start_line + 1, chunk.end_line + 1));
+            } else {
+                result.push_str(&format!("{:?} ", chunk.chunk_type));
+                if !chunk.name.is_empty() {
+                    result.push_str(&chunk.name);
+                }
+                result.push_str(&format!(" (lines {}-{})\n", 
+                    chunk.start_line + 1, chunk.end_line + 1));
+            }
+            
+            // For classes/structs/interfaces, show only declaration line; for methods/functions, show full body
+            let content_to_show = match chunk.chunk_type {
+                ChunkType::Class | ChunkType::Struct | ChunkType::Interface => {
+                    self.extract_declaration_line(&chunk.content)
+                },
+                _ => chunk.content.clone()
+            };
+            
+            let highlighted_content = self.highlight_content_matches(&content_to_show, snippet_generator)?;
+            result.push_str(&highlighted_content);
+        }
+        
+        Ok(result)
+    }
     
+    fn highlight_content_matches(&self, content: &str, snippet_generator: &SnippetGenerator) -> Result<String> {
+        // Create a temporary document with the content
+        let mut temp_doc = TantivyDocument::new();
+        temp_doc.add_text(self.content_field, content);
+        
+        // Generate snippet to get highlight ranges
+        let snippet = snippet_generator.snippet_from_doc(&temp_doc);
+        let highlighted_ranges = snippet.highlighted();
+        
+        // If no highlighting needed, return plain text
+        if highlighted_ranges.is_empty() {
+            return Ok(content.to_string());
+        }
+        
+        // Check if we should use colors
+        let use_colors = atty::is(Stream::Stdout);
+        let (highlight_start, highlight_end) = if use_colors {
+            ("\x1b[1;33m", "\x1b[0m") // Bold yellow
+        } else {
+            ("", "")
+        };
+        
+        let mut result = String::new();
+        let mut last_end = 0;
+        
+        // Sort ranges by start position to handle overlapping ranges
+        let mut ranges: Vec<_> = highlighted_ranges.iter().cloned().collect();
+        ranges.sort_by_key(|r| r.start);
+        
+        for range in ranges {
+            // Add text before highlight
+            if range.start > last_end {
+                result.push_str(&content[last_end..range.start]);
+            }
+            
+            // Add highlighted text
+            result.push_str(highlight_start);
+            result.push_str(&content[range.start..range.end]);
+            result.push_str(highlight_end);
+            
+            last_end = range.end;
+        }
+        
+        // Add remaining text after last highlight
+        if last_end < content.len() {
+            result.push_str(&content[last_end..]);
+        }
+        
+        Ok(result)
+    }
+    
+    fn extract_declaration_line(&self, content: &str) -> String {
+        let lines: Vec<&str> = content.lines().collect();
+        
+        // Find lines that likely contain class/struct/interface declarations
+        let mut declaration_lines = Vec::new();
+        let mut in_declaration = false;
+        
+        for line in &lines {
+            let trimmed = line.trim();
+            
+            // Skip empty lines and comments at the start
+            if trimmed.is_empty() || trimmed.starts_with("//") || trimmed.starts_with("/*") || trimmed.starts_with("*") {
+                if !in_declaration {
+                    continue;
+                }
+            }
+            
+            // Check if this line contains class/struct/interface keywords or annotations
+            if trimmed.starts_with('@') || // Java annotations
+               trimmed.contains("class ") || 
+               trimmed.contains("struct ") || 
+               trimmed.contains("interface ") ||
+               trimmed.contains("enum ") ||
+               trimmed.contains("trait ") ||
+               trimmed.contains("extends ") ||
+               trimmed.contains("implements ") ||
+               (in_declaration && (trimmed.contains("extends ") || trimmed.contains("implements ") || trimmed.ends_with('{'))) {
+                
+                declaration_lines.push(line);
+                in_declaration = true;
+                
+                // Stop when we hit the opening brace (end of declaration)
+                if trimmed.ends_with('{') {
+                    break;
+                }
+            } else if in_declaration {
+                // If we're in a declaration and hit a line that doesn't seem part of it, stop
+                break;
+            }
+        }
+        
+        if declaration_lines.is_empty() {
+            // Fallback: return first non-empty, non-comment line
+            for line in &lines {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() && !trimmed.starts_with("//") && !trimmed.starts_with("/*") && !trimmed.starts_with("*") {
+                    return line.to_string();
+                }
+            }
+            // Ultimate fallback: return first few lines
+            return lines.iter().take(3).map(|s| *s).collect::<Vec<_>>().join("\n");
+        }
+        
+        declaration_lines.iter().map(|s| s.to_string()).collect::<Vec<_>>().join("\n")
+    }
 }
