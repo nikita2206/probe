@@ -50,13 +50,14 @@ impl CodeChunker {
         let rust_query = Query::new(
             rust_language,
             r#"
-            (function_item 
-                name: (identifier) @name) @function
             (impl_item 
                 type: (type_identifier) @type_name
                 body: (declaration_list
                     (function_item
                         name: (identifier) @name) @method))
+            (source_file
+                (function_item 
+                    name: (identifier) @name) @function)
             (struct_item
                 name: (type_identifier) @name) @struct
             (trait_item
