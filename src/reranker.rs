@@ -55,9 +55,20 @@ impl Reranker {
             });
         }
 
+        // Set cache directory to a more appropriate location
+        let cache_dir = std::env::var("FASTEMBED_CACHE_PATH")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| {
+                // Default to a cache directory in the user's cache directory
+                dirs::cache_dir()
+                    .unwrap_or_else(|| std::env::temp_dir())
+                    .join("codesearch-fastembed")
+            });
+
         let model = TextRerank::try_new(
             RerankInitOptions::new(config.model.clone())
-                .with_show_download_progress(config.show_download_progress),
+                .with_show_download_progress(config.show_download_progress)
+                .with_cache_dir(cache_dir),
         )
         .context("Failed to initialize reranking model")?;
 
@@ -69,8 +80,21 @@ impl Reranker {
 
     /// Create a dummy model for disabled reranker (won't be used)
     fn create_dummy_model() -> Result<TextRerank> {
-        TextRerank::try_new(RerankInitOptions::new(RerankerModel::BGERerankerBase))
-            .context("Failed to create dummy model")
+        // Set cache directory to a more appropriate location for dummy model too
+        let cache_dir = std::env::var("FASTEMBED_CACHE_PATH")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|_| {
+                // Default to a cache directory in the user's cache directory
+                dirs::cache_dir()
+                    .unwrap_or_else(|| std::env::temp_dir())
+                    .join("codesearch-fastembed")
+            });
+
+        TextRerank::try_new(
+            RerankInitOptions::new(RerankerModel::BGERerankerBase)
+                .with_cache_dir(cache_dir)
+        )
+        .context("Failed to create dummy model")
     }
 
     /// Rerank documents based on query relevance

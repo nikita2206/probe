@@ -21,3 +21,6 @@ Thumbs.db
 
 # Project specific
 .codesearch/
+
+# FastEmbed cache (now stored in system cache dir, but in case of local override)
+.fastembed_cache/

@@ -429,6 +429,7 @@ dependencies = [
  "atty",
  "bincode",
  "clap",
+ "dirs",
  "fastembed",
  "ignore",
  "predicates",
