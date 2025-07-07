@@ -1,4 +1,4 @@
-# probe (pb)
+# 🔎 probe (pb)
 
 **probe** is a smart code search tool that works like grep but with better results. It runs locally on your machine with no servers or dependencies, using BM25 full-text search and ML reranking to find what you're actually looking for.
 
