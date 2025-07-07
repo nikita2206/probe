@@ -1,7 +1,7 @@
-use anyhow::{Result, Context};
-use fastembed::{TextRerank, RerankInitOptions, RerankerModel};
-use std::sync::Arc;
+use anyhow::{Context, Result};
+use fastembed::{RerankInitOptions, RerankerModel, TextRerank};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Configuration for the reranker
 #[derive(Debug, Clone)]
@@ -90,8 +90,7 @@ impl Reranker {
             });
 
         TextRerank::try_new(
-            RerankInitOptions::new(RerankerModel::BGERerankerBase)
-                .with_cache_dir(cache_dir)
+            RerankInitOptions::new(RerankerModel::BGERerankerBase).with_cache_dir(cache_dir),
         )
         .context("Failed to create dummy model")
     }
@@ -111,12 +110,11 @@ impl Reranker {
         }
 
         // Extract document content for reranking
-        let doc_contents: Vec<&str> = documents.iter()
-            .map(|doc| doc.content.as_str())
-            .collect();
+        let doc_contents: Vec<&str> = documents.iter().map(|doc| doc.content.as_str()).collect();
 
         // Perform reranking
-        let rerank_results = self.model
+        let rerank_results = self
+            .model
             .rerank(query, doc_contents, true, None)
             .context("Failed to rerank documents")?;
 
@@ -141,8 +139,6 @@ impl Reranker {
             rerank_scores,
         })
     }
-
-
 }
 
 /// Parse reranker model from string
@@ -150,8 +146,12 @@ pub fn parse_reranker_model(model_str: &str) -> Result<RerankerModel> {
     match model_str.to_lowercase().as_str() {
         "bge-reranker-base" | "baai/bge-reranker-base" => Ok(RerankerModel::BGERerankerBase),
         "bge-reranker-v2-m3" | "baai/bge-reranker-v2-m3" => Ok(RerankerModel::BGERerankerV2M3),
-        "jina-reranker-v1-turbo-en" | "jinaai/jina-reranker-v1-turbo-en" => Ok(RerankerModel::JINARerankerV1TurboEn),
-        "jina-reranker-v2-base-multilingual" | "jinaai/jina-reranker-v2-base-multilingual" => Ok(RerankerModel::JINARerankerV2BaseMultiligual),
+        "jina-reranker-v1-turbo-en" | "jinaai/jina-reranker-v1-turbo-en" => {
+            Ok(RerankerModel::JINARerankerV1TurboEn)
+        }
+        "jina-reranker-v2-base-multilingual" | "jinaai/jina-reranker-v2-base-multilingual" => {
+            Ok(RerankerModel::JINARerankerV2BaseMultiligual)
+        }
         _ => Err(anyhow::anyhow!("Unknown reranker model: {}", model_str)),
     }
 }
@@ -161,8 +161,14 @@ pub fn available_models() -> Vec<(&'static str, &'static str)> {
     vec![
         ("bge-reranker-base", "BAAI/bge-reranker-base (default)"),
         ("bge-reranker-v2-m3", "BAAI/bge-reranker-v2-m3"),
-        ("jina-reranker-v1-turbo-en", "jinaai/jina-reranker-v1-turbo-en"),
-        ("jina-reranker-v2-base-multilingual", "jinaai/jina-reranker-v2-base-multilingual"),
+        (
+            "jina-reranker-v1-turbo-en",
+            "jinaai/jina-reranker-v1-turbo-en",
+        ),
+        (
+            "jina-reranker-v2-base-multilingual",
+            "jinaai/jina-reranker-v2-base-multilingual",
+        ),
     ]
 }
 
@@ -180,23 +186,20 @@ mod tests {
         assert!(parse_reranker_model("invalid-model").is_err());
     }
 
-
     #[test]
     fn test_rerank_disabled() {
         let config = RerankerConfig {
             enabled: false,
             ..Default::default()
         };
-        
+
         let reranker = Reranker::new(config).unwrap();
-        
-        let docs = vec![
-            RerankDocument {
-                content: "Test document".to_string(),
-                metadata: HashMap::new(),
-            }
-        ];
-        
+
+        let docs = vec![RerankDocument {
+            content: "Test document".to_string(),
+            metadata: HashMap::new(),
+        }];
+
         let result = reranker.rerank("test query", docs.clone(), None).unwrap();
         assert_eq!(result.documents.len(), 1);
         assert_eq!(result.rerank_scores.len(), 0);

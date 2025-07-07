@@ -1,17 +1,15 @@
-use std::path::{Path, PathBuf};
-use std::fs;
-use anyhow::Result;
-use tantivy::{
-    schema::{Schema, STORED, TEXT, Value, TextFieldIndexing, IndexRecordOption, TextOptions},
-    Index, IndexWriter, TantivyDocument,
-    collector::TopDocs,
-    query::{QueryParser, TermQuery, BooleanQuery, Occur},
-    SnippetGenerator, Snippet,
-    Term,
-    tokenizer::{TextAnalyzer, RegexTokenizer, LowerCaser, RemoveLongFilter, Stemmer, Language},
-};
-use atty::Stream;
 use crate::code_chunker::CodeChunker;
+use anyhow::Result;
+use atty::Stream;
+use std::fs;
+use std::path::{Path, PathBuf};
+use tantivy::{
+    collector::TopDocs,
+    query::{BooleanQuery, Occur, QueryParser, TermQuery},
+    schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, STORED, TEXT},
+    tokenizer::{Language, LowerCaser, RegexTokenizer, RemoveLongFilter, Stemmer, TextAnalyzer},
+    Index, IndexWriter, Snippet, SnippetGenerator, TantivyDocument, Term,
+};
 
 pub struct SearchIndex {
     index: Index,
@@ -38,14 +36,18 @@ pub struct SearchResult {
 }
 
 impl SearchIndex {
-    pub fn new<P: AsRef<Path>>(index_dir: P, language: Language, stemming_enabled: bool) -> Result<Self> {
+    pub fn new<P: AsRef<Path>>(
+        index_dir: P,
+        language: Language,
+        stemming_enabled: bool,
+    ) -> Result<Self> {
         let mut schema_builder = Schema::builder();
         let path_field = schema_builder.add_text_field("path", STORED);
-        
+
         // Create custom tokenizer for camel case splitting with optional stemming
         let camel_case_tokenizer = if stemming_enabled {
             TextAnalyzer::builder(
-                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap()
+                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap(),
             )
             .filter(RemoveLongFilter::limit(40))
             .filter(LowerCaser)
@@ -53,42 +55,43 @@ impl SearchIndex {
             .build()
         } else {
             TextAnalyzer::builder(
-                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap()
+                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap(),
             )
             .filter(RemoveLongFilter::limit(40))
             .filter(LowerCaser)
             .build()
         };
-        
+
         // Configure declaration and body fields with custom tokenizer
         let field_indexing = TextFieldIndexing::default()
             .set_tokenizer("camel_case")
             .set_index_option(IndexRecordOption::WithFreqsAndPositions);
-        
+
         let field_options = TextOptions::default()
             .set_indexing_options(field_indexing)
             .set_stored();
-        
+
         // Add declaration and body fields
         let declaration_field = schema_builder.add_text_field("declaration", field_options.clone());
         let body_field = schema_builder.add_text_field("body", field_options);
-        
+
         let filetype_field = schema_builder.add_text_field("filetype", TEXT | STORED);
         let chunk_type_field = schema_builder.add_text_field("chunk_type", TEXT | STORED);
         let chunk_name_field = schema_builder.add_text_field("chunk_name", TEXT | STORED);
         let start_line_field = schema_builder.add_u64_field("start_line", STORED);
         let end_line_field = schema_builder.add_u64_field("end_line", STORED);
         let schema = schema_builder.build();
-        
+
         fs::create_dir_all(&index_dir)?;
         let index = Index::create_in_dir(&index_dir, schema.clone())?;
-        
+
         // Register the custom tokenizer
-        index.tokenizers()
+        index
+            .tokenizers()
             .register("camel_case", camel_case_tokenizer);
-        
+
         let code_chunker = CodeChunker::new()?;
-        
+
         Ok(Self {
             index,
             path_field,
@@ -102,8 +105,12 @@ impl SearchIndex {
             code_chunker,
         })
     }
-    
-    pub fn open<P: AsRef<Path>>(index_dir: P, language: Language, stemming_enabled: bool) -> Result<Self> {
+
+    pub fn open<P: AsRef<Path>>(
+        index_dir: P,
+        language: Language,
+        stemming_enabled: bool,
+    ) -> Result<Self> {
         let index = Index::open_in_dir(&index_dir)?;
         let schema = index.schema();
         let path_field = schema.get_field("path")?;
@@ -114,20 +121,20 @@ impl SearchIndex {
             // For backward compatibility with old indexes
             schema.get_field("filetype").unwrap()
         });
-        let chunk_name_field = schema.get_field("chunk_name").unwrap_or_else(|_| {
-            schema.get_field("filetype").unwrap()
-        });
-        let start_line_field = schema.get_field("start_line").unwrap_or_else(|_| {
-            schema.get_field("filetype").unwrap()
-        });
-        let end_line_field = schema.get_field("end_line").unwrap_or_else(|_| {
-            schema.get_field("filetype").unwrap()
-        });
-        
+        let chunk_name_field = schema
+            .get_field("chunk_name")
+            .unwrap_or_else(|_| schema.get_field("filetype").unwrap());
+        let start_line_field = schema
+            .get_field("start_line")
+            .unwrap_or_else(|_| schema.get_field("filetype").unwrap());
+        let end_line_field = schema
+            .get_field("end_line")
+            .unwrap_or_else(|_| schema.get_field("filetype").unwrap());
+
         // Register the custom tokenizer for existing indexes
         let camel_case_tokenizer = if stemming_enabled {
             TextAnalyzer::builder(
-                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap()
+                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap(),
             )
             .filter(RemoveLongFilter::limit(40))
             .filter(LowerCaser)
@@ -135,18 +142,19 @@ impl SearchIndex {
             .build()
         } else {
             TextAnalyzer::builder(
-                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap()
+                RegexTokenizer::new(r"[a-z]+|[A-Z][a-z]*|[0-9]+|[^a-zA-Z0-9]+").unwrap(),
             )
             .filter(RemoveLongFilter::limit(40))
             .filter(LowerCaser)
             .build()
         };
-        
-        index.tokenizers()
+
+        index
+            .tokenizers()
             .register("camel_case", camel_case_tokenizer);
-        
+
         let code_chunker = CodeChunker::new()?;
-        
+
         Ok(Self {
             index,
             path_field,
@@ -160,33 +168,39 @@ impl SearchIndex {
             code_chunker,
         })
     }
-    
+
     pub fn index_files(&mut self, files: &[PathBuf]) -> Result<()> {
         let mut index_writer: IndexWriter<TantivyDocument> = self.index.writer(50_000_000)?; // 50MB heap
-        
+
         for file_path in files {
             self.index_file(&mut index_writer, file_path)?;
         }
-        
+
         index_writer.commit()?;
         Ok(())
     }
-    
-    fn index_file(&mut self, writer: &mut IndexWriter<TantivyDocument>, file_path: &Path) -> Result<()> {
+
+    fn index_file(
+        &mut self,
+        writer: &mut IndexWriter<TantivyDocument>,
+        file_path: &Path,
+    ) -> Result<()> {
         let content = match fs::read_to_string(file_path) {
             Ok(content) => content,
-            Err(_) => return Ok(()) // Skip files we can't read as text
+            Err(_) => return Ok(()), // Skip files we can't read as text
         };
-        
+
         // Extract file extension
         let extension = file_path
             .extension()
             .and_then(|ext| ext.to_str())
             .unwrap_or("");
-        
+
         // Get code chunks for indexing
-        let chunks = self.code_chunker.chunk_code_for_indexing(file_path, &content)?;
-        
+        let chunks = self
+            .code_chunker
+            .chunk_code_for_indexing(file_path, &content)?;
+
         if chunks.is_empty() {
             // If no chunks, index the whole file (for non-code files or empty files)
             let mut doc = TantivyDocument::new();
@@ -197,14 +211,18 @@ impl SearchIndex {
             doc.add_text(self.chunk_type_field, "file");
             doc.add_text(self.chunk_name_field, "");
             doc.add_u64(self.start_line_field, 0);
-            doc.add_u64(self.end_line_field, content.lines().count().saturating_sub(1) as u64);
+            doc.add_u64(
+                self.end_line_field,
+                content.lines().count().saturating_sub(1) as u64,
+            );
             writer.add_document(doc)?;
         } else {
             // Index each chunk as a separate document
             for chunk in chunks {
                 // Split content into declaration and body
-                let (declaration, body) = CodeChunker::split_method_content(&chunk.content, &chunk.chunk_type);
-                
+                let (declaration, body) =
+                    CodeChunker::split_method_content(&chunk.content, &chunk.chunk_type);
+
                 let mut doc = TantivyDocument::new();
                 doc.add_text(self.path_field, file_path.to_string_lossy().as_ref());
                 doc.add_text(self.declaration_field, &declaration);
@@ -217,36 +235,43 @@ impl SearchIndex {
                 writer.add_document(doc)?;
             }
         }
-        
+
         Ok(())
     }
-    
-    pub fn search(&mut self, query_str: &str, limit: usize, filetype: Option<&str>) -> Result<Vec<SearchResult>> {
-        let reader = self.index
-            .reader_builder()
-            .try_into()?;
-        
+
+    pub fn search(
+        &mut self,
+        query_str: &str,
+        limit: usize,
+        filetype: Option<&str>,
+    ) -> Result<Vec<SearchResult>> {
+        let reader = self.index.reader_builder().try_into()?;
+
         let searcher = reader.searcher();
-        
+
         // Create query parser with boosted fields - declaration gets higher boost than body
         let mut query_parser = QueryParser::for_index(
-            &self.index, 
-            vec![self.declaration_field, self.body_field, self.chunk_name_field]
+            &self.index,
+            vec![
+                self.declaration_field,
+                self.body_field,
+                self.chunk_name_field,
+            ],
         );
-        
+
         // Set field boosts: declaration > chunk_name > body
-        query_parser.set_field_boost(self.declaration_field, 3.0);  // Highest boost for method declarations
-        query_parser.set_field_boost(self.chunk_name_field, 2.5);   // High boost for function/class names
-        query_parser.set_field_boost(self.body_field, 1.0);         // Baseline boost for method bodies
-        
+        query_parser.set_field_boost(self.declaration_field, 3.0); // Highest boost for method declarations
+        query_parser.set_field_boost(self.chunk_name_field, 2.5); // High boost for function/class names
+        query_parser.set_field_boost(self.body_field, 1.0); // Baseline boost for method bodies
+
         let content_query = query_parser.parse_query(query_str)?;
-        
+
         // Build the final query with optional filetype filter
         let final_query: Box<dyn tantivy::query::Query> = if let Some(filetype) = filetype {
             let filetype_term = Term::from_field_text(self.filetype_field, filetype);
-            let filetype_query = TermQuery::new(filetype_term, tantivy::schema::IndexRecordOption::Basic);
-            
-            
+            let filetype_query =
+                TermQuery::new(filetype_term, tantivy::schema::IndexRecordOption::Basic);
+
             Box::new(BooleanQuery::new(vec![
                 (Occur::Must, content_query),
                 (Occur::Must, Box::new(filetype_query)),
@@ -254,63 +279,69 @@ impl SearchIndex {
         } else {
             content_query
         };
-        
+
         let top_docs = searcher.search(&final_query, &TopDocs::with_limit(limit))?;
         let mut results = Vec::new();
-        
+
         // Create snippet generators for both body and declaration fields
         let snippet_query = query_parser.parse_query(query_str)?;
-        let snippet_generator = SnippetGenerator::create(&searcher, &*snippet_query, self.body_field)?;
-        let declaration_snippet_generator = SnippetGenerator::create(&searcher, &*snippet_query, self.declaration_field)?;
-        
+        let snippet_generator =
+            SnippetGenerator::create(&searcher, &*snippet_query, self.body_field)?;
+        let declaration_snippet_generator =
+            SnippetGenerator::create(&searcher, &*snippet_query, self.declaration_field)?;
+
         for (score, doc_address) in top_docs {
             let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
-            
+
             let path_text = retrieved_doc
                 .get_first(self.path_field)
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            
+
             // Apply path-based score penalties
             let adjusted_score = Self::apply_path_penalties(score, path_text);
-            
+
             // Extract chunk metadata
             let chunk_type = retrieved_doc
                 .get_first(self.chunk_type_field)
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            
+
             let chunk_name = retrieved_doc
                 .get_first(self.chunk_name_field)
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
-            
+
             let start_line = retrieved_doc
                 .get_first(self.start_line_field)
                 .and_then(|v| v.as_u64())
                 .map(|n| n as usize);
-            
+
             let end_line = retrieved_doc
                 .get_first(self.end_line_field)
                 .and_then(|v| v.as_u64())
                 .map(|n| n as usize);
-            
+
             // Generate snippet with highlighting - for methods/functions, show full content
             let body_content = retrieved_doc
                 .get_first(self.body_field)
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-            
+
             let declaration_content = retrieved_doc
                 .get_first(self.declaration_field)
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
-                
-            let snippet_text = if matches!(chunk_type.as_deref(), Some("Function") | Some("Method")) {
+
+            let snippet_text = if matches!(chunk_type.as_deref(), Some("Function") | Some("Method"))
+            {
                 // For methods and functions, show the full content with highlighting
                 if body_content.trim().is_empty() {
                     // For methods without bodies (e.g., interface methods), use declaration content
-                    self.highlight_full_content(declaration_content, &declaration_snippet_generator)?
+                    self.highlight_full_content(
+                        declaration_content,
+                        &declaration_snippet_generator,
+                    )?
                 } else {
                     // For methods with bodies, combine declaration and body for complete context
                     let combined_content = format!("{}\n{}", declaration_content, body_content);
@@ -321,7 +352,7 @@ impl SearchIndex {
                 let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
                 self.render_snippet_with_terminal_colors(&snippet)
             };
-            
+
             results.push(SearchResult {
                 path: PathBuf::from(path_text),
                 score: adjusted_score,
@@ -332,36 +363,40 @@ impl SearchIndex {
                 end_line,
             });
         }
-        
+
         // Sort results by adjusted score in descending order (highest score first)
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
-        
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
         Ok(results)
     }
-    
+
     fn apply_path_penalties(score: f32, path: &str) -> f32 {
         let mut adjusted_score = score;
-        
+
         // Apply penalty for test files - reduce score by 50% if path contains "test"
         if path.to_lowercase().contains("test") {
             adjusted_score *= 0.5;
         }
-        
+
         adjusted_score
     }
-    
+
     fn render_snippet_with_terminal_colors(&self, snippet: &Snippet) -> String {
         let text = snippet.fragment();
         let highlighted_ranges = snippet.highlighted();
-        
+
         // Debug: let's see what we get (remove this line for production)
         // eprintln!("Debug: text='{}', ranges={:?}", text, highlighted_ranges);
-        
+
         // If no highlighting needed, return plain text
         if highlighted_ranges.is_empty() {
             return text.to_string();
         }
-        
+
         // Check if we should use colors
         let use_colors = atty::is(Stream::Stdout);
         let (highlight_start, highlight_end) = if use_colors {
@@ -369,51 +404,54 @@ impl SearchIndex {
         } else {
             ("", "") // No highlighting when not in terminal
         };
-        
+
         let mut result = String::new();
         let mut last_end = 0;
-        
+
         // Sort ranges by start position to handle overlapping ranges
         let mut ranges: Vec<_> = highlighted_ranges.iter().cloned().collect();
         ranges.sort_by_key(|r| r.start);
-        
+
         for range in ranges {
             // Add text before highlight
             if range.start > last_end {
                 result.push_str(&text[last_end..range.start]);
             }
-            
+
             // Add highlighted text
             result.push_str(highlight_start);
             result.push_str(&text[range.start..range.end]);
             result.push_str(highlight_end);
-            
+
             last_end = range.end;
         }
-        
+
         // Add remaining text after last highlight
         if last_end < text.len() {
             result.push_str(&text[last_end..]);
         }
-        
+
         result
     }
-    
-    
-    fn highlight_full_content(&self, content: &str, snippet_generator: &SnippetGenerator) -> Result<String> {
+
+    fn highlight_full_content(
+        &self,
+        content: &str,
+        snippet_generator: &SnippetGenerator,
+    ) -> Result<String> {
         // Create a temporary document with the content
         let mut temp_doc = TantivyDocument::new();
         temp_doc.add_text(self.body_field, content);
-        
+
         // Generate snippet to get highlight ranges
         let snippet = snippet_generator.snippet_from_doc(&temp_doc);
         let highlighted_ranges = snippet.highlighted();
-        
+
         // If no highlighting needed, return the full content
         if highlighted_ranges.is_empty() {
             return Ok(content.to_string());
         }
-        
+
         // Check if we should use colors
         let use_colors = atty::is(Stream::Stdout);
         let (highlight_start, highlight_end) = if use_colors {
@@ -421,35 +459,33 @@ impl SearchIndex {
         } else {
             ("", "")
         };
-        
+
         let mut result = String::new();
         let mut last_end = 0;
-        
+
         // Sort ranges by start position to handle overlapping ranges
         let mut ranges: Vec<_> = highlighted_ranges.iter().cloned().collect();
         ranges.sort_by_key(|r| r.start);
-        
+
         for range in ranges {
             // Add text before highlight
             if range.start > last_end {
                 result.push_str(&content[last_end..range.start]);
             }
-            
+
             // Add highlighted text
             result.push_str(highlight_start);
             result.push_str(&content[range.start..range.end]);
             result.push_str(highlight_end);
-            
+
             last_end = range.end;
         }
-        
+
         // Add remaining text after last highlight
         if last_end < content.len() {
             result.push_str(&content[last_end..]);
         }
-        
+
         Ok(result)
     }
-
-    
 }

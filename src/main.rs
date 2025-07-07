@@ -1,15 +1,15 @@
-mod file_scanner;
-mod search_index;
-mod metadata;
-mod search_engine;
-mod config;
 mod code_chunker;
+mod config;
+mod file_scanner;
+mod metadata;
 mod reranker;
+mod search_engine;
+mod search_index;
 
-use clap::{Parser, Subcommand};
 use anyhow::Result;
+use clap::{Parser, Subcommand};
+use reranker::{available_models, parse_reranker_model, RerankerConfig};
 use search_engine::SearchEngine;
-use reranker::{RerankerConfig, parse_reranker_model, available_models};
 
 #[derive(Parser)]
 #[command(name = "codesearch")]
@@ -17,25 +17,38 @@ use reranker::{RerankerConfig, parse_reranker_model, available_models};
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
-    
+
     #[arg(short, long, help = "Directory to search")]
     directory: Option<String>,
-    
+
     #[arg(short = 't', long, help = "Filter by file type (extension)")]
     filetype: Option<String>,
-    
-    #[arg(short = 'n', long = "num-results", help = "Number of results to return", default_value = "10")]
+
+    #[arg(
+        short = 'n',
+        long = "num-results",
+        help = "Number of results to return",
+        default_value = "10"
+    )]
     num_results: usize,
-    
+
     #[arg(long = "no-rerank", help = "Disable reranking of search results")]
     no_rerank: bool,
-    
-    #[arg(long = "rerank-model", help = "Reranking model to use", default_value = "bge-reranker-base")]
+
+    #[arg(
+        long = "rerank-model",
+        help = "Reranking model to use",
+        default_value = "bge-reranker-base"
+    )]
     rerank_model: String,
-    
-    #[arg(long = "rerank-candidates", help = "Minimum candidates to fetch for reranking", default_value = "10")]
+
+    #[arg(
+        long = "rerank-candidates",
+        help = "Minimum candidates to fetch for reranking",
+        default_value = "10"
+    )]
     rerank_candidates: usize,
-    
+
     #[arg(help = "Search query")]
     query: Option<String>,
 }
@@ -52,9 +65,9 @@ enum Commands {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    
+
     let root_dir = cli.directory.unwrap_or_else(|| ".".to_string());
-    
+
     match cli.command {
         Some(Commands::Rebuild) => {
             let engine = SearchEngine::new(&root_dir)?;
@@ -79,18 +92,25 @@ fn main() -> Result<()> {
                     min_candidates: cli.rerank_candidates,
                     show_download_progress: true,
                 };
-                
+
                 let engine = SearchEngine::new(&root_dir)?;
                 engine.ensure_index_updated()?;
-                let results = engine.search_with_reranker(&query, Some(cli.num_results), cli.filetype.as_deref(), reranker_config)?;
-                
+                let results = engine.search_with_reranker(
+                    &query,
+                    Some(cli.num_results),
+                    cli.filetype.as_deref(),
+                    reranker_config,
+                )?;
+
                 if results.is_empty() {
                     println!("No results found for '{}'", query);
                 } else {
                     println!("Found {} results for '{}':\n", results.len(), query);
                     for (i, result) in results.iter().enumerate() {
                         // Format chunk information
-                        let chunk_info = if let (Some(chunk_type), Some(chunk_name)) = (&result.chunk_type, &result.chunk_name) {
+                        let chunk_info = if let (Some(chunk_type), Some(chunk_name)) =
+                            (&result.chunk_type, &result.chunk_name)
+                        {
                             if !chunk_name.is_empty() {
                                 format!(" - {} {}", chunk_type, chunk_name)
                             } else {
@@ -99,9 +119,11 @@ fn main() -> Result<()> {
                         } else {
                             String::new()
                         };
-                        
+
                         // Format line information
-                        let line_info = if let (Some(start), Some(end)) = (result.start_line, result.end_line) {
+                        let line_info = if let (Some(start), Some(end)) =
+                            (result.start_line, result.end_line)
+                        {
                             if start == end {
                                 format!(" (line {})", start + 1)
                             } else {
@@ -110,9 +132,10 @@ fn main() -> Result<()> {
                         } else {
                             String::new()
                         };
-                        
-                        println!("{}. {}{}{} (score: {:.2})", 
-                            i + 1, 
+
+                        println!(
+                            "{}. {}{}{} (score: {:.2})",
+                            i + 1,
                             result.path.display(),
                             chunk_info,
                             line_info,
@@ -128,6 +151,6 @@ fn main() -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }

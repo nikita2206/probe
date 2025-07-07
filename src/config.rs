@@ -1,6 +1,6 @@
-use std::path::Path;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use tantivy::tokenizer::Language;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,7 +45,7 @@ impl Config {
         if !self.stemming.enabled {
             return Ok(Language::English); // Default fallback, but stemming will be disabled
         }
-        
+
         match self.stemming.language.to_lowercase().as_str() {
             "english" | "en" => Ok(Language::English),
             "french" | "fr" => Ok(Language::French),
