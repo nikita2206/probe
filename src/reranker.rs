@@ -18,21 +18,13 @@ pub struct CustomRerankerModel {
 }
 
 /// Configuration file structure
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ProbeConfig {
     pub custom_rerankers: HashMap<String, CustomRerankerModel>,
     #[serde(default)]
     pub default_reranker: Option<String>,
 }
 
-impl Default for ProbeConfig {
-    fn default() -> Self {
-        Self {
-            custom_rerankers: HashMap::new(),
-            default_reranker: None,
-        }
-    }
-}
 
 impl ProbeConfig {
     /// Load configuration from file, with fallback to default
@@ -62,27 +54,6 @@ impl ProbeConfig {
         Ok(home_dir.join(".probe").join("config.yaml"))
     }
 
-    /// Save configuration to file
-    pub fn save_to_file(&self, config_path: Option<&PathBuf>) -> Result<()> {
-        let config_path = match config_path {
-            Some(path) => path.clone(),
-            None => Self::default_config_path()?,
-        };
-
-        // Create parent directory if it doesn't exist
-        if let Some(parent) = config_path.parent() {
-            std::fs::create_dir_all(parent).with_context(|| {
-                format!("Failed to create config directory: {}", parent.display())
-            })?;
-        }
-
-        let config_content = serde_yaml::to_string(self).context("Failed to serialize config")?;
-
-        std::fs::write(&config_path, config_content)
-            .with_context(|| format!("Failed to write config file: {}", config_path.display()))?;
-
-        Ok(())
-    }
 
     /// Get a custom reranker model by name
     pub fn get_custom_model(&self, model_name: &str) -> Option<&CustomRerankerModel> {
@@ -131,7 +102,7 @@ pub struct RerankResult {
 /// Downloads a custom HuggingFace model using configuration and returns the local file paths
 fn download_hf_model_sync(
     custom_model: &CustomRerankerModel,
-    _cache_dir: &PathBuf,
+    _cache_dir: &std::path::Path,
 ) -> Result<(PathBuf, PathBuf, PathBuf)> {
     use hf_hub::api::sync::Api;
     use hf_hub::Repo;
@@ -283,7 +254,7 @@ impl Reranker {
     /// Create a custom model from HuggingFace using configuration
     fn create_custom_model(
         model_name: &str,
-        cache_dir: &PathBuf,
+        cache_dir: &std::path::Path,
         probe_config: &ProbeConfig,
     ) -> Result<TextRerank> {
         // Look up the custom model in the config
