@@ -178,3 +178,53 @@ codesearch-rs "\"it should\"~2 OR \"test_\"^1.5"
 5. **Test proximity**: Use `~` for flexible phrase matching
 
 The scoring system is designed to surface the most relevant code matches based on where terms appear and how they're structured in your codebase.
+
+## Reranking for Better Results
+
+codesearch-rs includes AI-powered reranking that improves search relevance by re-ordering results based on semantic similarity to your query.
+
+### How Reranking Works
+
+1. **Initial Search**: Tantivy finds candidate results (typically 10+ matches)
+2. **Reranking**: AI model scores each result for semantic relevance to your query
+3. **Final Results**: Results are re-ordered by AI relevance scores
+
+### Reranking Options
+
+```bash
+# Reranking is enabled by default
+codesearch-rs "error handling"
+
+# Disable reranking for faster searches
+codesearch-rs --no-rerank "error handling"
+
+# Use a different reranking model
+codesearch-rs --rerank-model jina-reranker-v2-base-multilingual "error handling"
+
+# Adjust candidate pool size (more candidates = better reranking)
+codesearch-rs --rerank-candidates 20 "error handling"
+```
+
+### Available Reranking Models
+
+```bash
+# List all available models
+codesearch-rs list-models
+```
+
+- **bge-reranker-base**: Default, good balance of speed and accuracy
+- **bge-reranker-v2-m3**: Improved version with better multilingual support
+- **jina-reranker-v1-turbo-en**: Fast English-only model
+- **jina-reranker-v2-base-multilingual**: Best for multilingual codebases
+
+### When Reranking Helps Most
+
+- **Complex queries**: Multi-word or conceptual searches
+- **Large result sets**: When many files match your query
+- **Semantic similarity**: Finding code that does similar things but uses different terms
+
+### When to Disable Reranking
+
+- **Simple exact matches**: Single-word or exact phrase searches
+- **Speed priority**: When you need results immediately
+- **Limited resources**: On slower machines or with large codebases

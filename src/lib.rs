@@ -4,6 +4,7 @@ pub mod metadata;
 pub mod search_engine;
 pub mod config;
 pub mod code_chunker;
+pub mod reranker;
 
 #[cfg(test)]
 mod tests {

@@ -4,10 +4,12 @@ mod metadata;
 mod search_engine;
 mod config;
 mod code_chunker;
+mod reranker;
 
 use clap::{Parser, Subcommand};
 use anyhow::Result;
 use search_engine::SearchEngine;
+use reranker::{RerankerConfig, parse_reranker_model, available_models};
 
 #[derive(Parser)]
 #[command(name = "codesearch")]
@@ -25,6 +27,15 @@ struct Cli {
     #[arg(short = 'n', long = "num-results", help = "Number of results to return", default_value = "10")]
     num_results: usize,
     
+    #[arg(long = "no-rerank", help = "Disable reranking of search results")]
+    no_rerank: bool,
+    
+    #[arg(long = "rerank-model", help = "Reranking model to use", default_value = "bge-reranker-base")]
+    rerank_model: String,
+    
+    #[arg(long = "rerank-candidates", help = "Minimum candidates to fetch for reranking", default_value = "10")]
+    rerank_candidates: usize,
+    
     #[arg(help = "Search query")]
     query: Option<String>,
 }
@@ -35,25 +46,43 @@ enum Commands {
     Rebuild,
     #[command(about = "Show index statistics")]
     Stats,
+    #[command(about = "List available reranking models")]
+    ListModels,
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     
     let root_dir = cli.directory.unwrap_or_else(|| ".".to_string());
-    let engine = SearchEngine::new(&root_dir)?;
     
     match cli.command {
         Some(Commands::Rebuild) => {
+            let engine = SearchEngine::new(&root_dir)?;
             engine.rebuild_index()?;
         }
         Some(Commands::Stats) => {
+            let engine = SearchEngine::new(&root_dir)?;
             engine.stats()?;
+        }
+        Some(Commands::ListModels) => {
+            println!("Available reranking models:");
+            for (name, description) in available_models() {
+                println!("  {}: {}", name, description);
+            }
         }
         None => {
             if let Some(query) = cli.query {
+                // Create reranker config
+                let reranker_config = RerankerConfig {
+                    enabled: !cli.no_rerank,
+                    model: parse_reranker_model(&cli.rerank_model)?,
+                    min_candidates: cli.rerank_candidates,
+                    show_download_progress: true,
+                };
+                
+                let engine = SearchEngine::new(&root_dir)?;
                 engine.ensure_index_updated()?;
-                let results = engine.search(&query, Some(cli.num_results), cli.filetype.as_deref())?;
+                let results = engine.search_with_reranker(&query, Some(cli.num_results), cli.filetype.as_deref(), reranker_config)?;
                 
                 if results.is_empty() {
                     println!("No results found for '{}'", query);
