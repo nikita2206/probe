@@ -228,7 +228,7 @@ impl SearchIndex {
                 doc.add_text(self.declaration_field, &declaration);
                 doc.add_text(self.body_field, &body);
                 doc.add_text(self.filetype_field, extension);
-                doc.add_text(self.chunk_type_field, &format!("{:?}", chunk.chunk_type));
+                doc.add_text(self.chunk_type_field, format!("{:?}", chunk.chunk_type));
                 doc.add_text(self.chunk_name_field, &chunk.name);
                 doc.add_u64(self.start_line_field, chunk.start_line as u64);
                 doc.add_u64(self.end_line_field, chunk.end_line as u64);
@@ -344,7 +344,7 @@ impl SearchIndex {
                     )?
                 } else {
                     // For methods with bodies, combine declaration and body for complete context
-                    let combined_content = format!("{}\n{}", declaration_content, body_content);
+                    let combined_content = format!("{declaration_content}\n{body_content}");
                     self.highlight_full_content(&combined_content, &snippet_generator)?
                 }
             } else {
@@ -409,7 +409,7 @@ impl SearchIndex {
         let mut last_end = 0;
 
         // Sort ranges by start position to handle overlapping ranges
-        let mut ranges: Vec<_> = highlighted_ranges.iter().cloned().collect();
+        let mut ranges: Vec<_> = highlighted_ranges.to_vec();
         ranges.sort_by_key(|r| r.start);
 
         for range in ranges {
@@ -464,7 +464,7 @@ impl SearchIndex {
         let mut last_end = 0;
 
         // Sort ranges by start position to handle overlapping ranges
-        let mut ranges: Vec<_> = highlighted_ranges.iter().cloned().collect();
+        let mut ranges: Vec<_> = highlighted_ranges.to_vec();
         ranges.sort_by_key(|r| r.start);
 
         for range in ranges {

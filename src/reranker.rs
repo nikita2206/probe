@@ -60,7 +60,7 @@ impl Reranker {
             .unwrap_or_else(|_| {
                 // Default to a cache directory in the user's cache directory
                 dirs::cache_dir()
-                    .unwrap_or_else(|| std::env::temp_dir())
+                    .unwrap_or_else(std::env::temp_dir)
                     .join("codesearch-fastembed")
             });
 
@@ -85,7 +85,7 @@ impl Reranker {
             .unwrap_or_else(|_| {
                 // Default to a cache directory in the user's cache directory
                 dirs::cache_dir()
-                    .unwrap_or_else(|| std::env::temp_dir())
+                    .unwrap_or_else(std::env::temp_dir)
                     .join("codesearch-fastembed")
             });
 
@@ -121,7 +121,7 @@ impl Reranker {
         // Sort documents by rerank score (higher is better)
         let mut scored_docs: Vec<(RerankDocument, f32)> = documents
             .into_iter()
-            .zip(rerank_results.into_iter())
+            .zip(rerank_results)
             .map(|(doc, result)| (doc, result.score))
             .collect();
 

@@ -80,7 +80,7 @@ fn main() -> Result<()> {
         Some(Commands::ListModels) => {
             println!("Available reranking models:");
             for (name, description) in available_models() {
-                println!("  {}: {}", name, description);
+                println!("  {name}: {description}");
             }
         }
         None => {
@@ -103,7 +103,7 @@ fn main() -> Result<()> {
                 )?;
 
                 if results.is_empty() {
-                    println!("No results found for '{}'", query);
+                    println!("No results found for '{query}'");
                 } else {
                     println!("Found {} results for '{}':\n", results.len(), query);
                     for (i, result) in results.iter().enumerate() {
@@ -112,9 +112,9 @@ fn main() -> Result<()> {
                             (&result.chunk_type, &result.chunk_name)
                         {
                             if !chunk_name.is_empty() {
-                                format!(" - {} {}", chunk_type, chunk_name)
+                                format!(" - {chunk_type} {chunk_name}")
                             } else {
-                                format!(" - {}", chunk_type)
+                                format!(" - {chunk_type}")
                             }
                         } else {
                             String::new()

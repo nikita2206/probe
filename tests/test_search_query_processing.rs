@@ -1,4 +1,4 @@
-use codesearch::search_index::SearchIndex;
+use probe::search_index::SearchIndex;
 use std::fs;
 use tantivy::tokenizer::Language;
 use tempfile::TempDir;

@@ -1,6 +1,6 @@
-use codesearch::config::Config;
-use codesearch::reranker::RerankerConfig;
-use codesearch::search_engine::SearchEngine;
+use probe::config::Config;
+use probe::reranker::RerankerConfig;
+use probe::search_engine::SearchEngine;
 use std::fs;
 use tempfile::TempDir;
 

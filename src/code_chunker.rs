@@ -606,7 +606,7 @@ impl CodeChunker {
                     found_opening_brace = true;
                     // If the line has content after the opening brace, start body from this line
                     let brace_pos = line.find('{').unwrap();
-                    if brace_pos + 1 < line.len() && line[brace_pos + 1..].trim().len() > 0 {
+                    if brace_pos + 1 < line.len() && !line[brace_pos + 1..].trim().is_empty() {
                         body_lines.push(line);
                     }
                 }
