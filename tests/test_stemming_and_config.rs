@@ -1,5 +1,6 @@
 use codesearch::search_engine::SearchEngine;
 use codesearch::config::Config;
+use codesearch::reranker::RerankerConfig;
 use std::fs;
 use tempfile::TempDir;
 
@@ -25,12 +26,13 @@ stemming:
     engine.rebuild_index().unwrap();
     
     // Test that singular form matches plural
-    let results = engine.search("carrier", Some(10), None).unwrap();
+    let reranker_config = RerankerConfig { enabled: false, ..Default::default() };
+    let results = engine.search_with_reranker("carrier", Some(10), None, reranker_config.clone()).unwrap();
     assert!(!results.is_empty(), "Should find 'carriers' when searching for 'carrier'");
     assert!(results[0].path.ends_with("test.rs"));
     
     // Test that singular form matches plural for 'runner'
-    let results = engine.search("runner", Some(10), None).unwrap();
+    let results = engine.search_with_reranker("runner", Some(10), None, reranker_config).unwrap();
     assert!(!results.is_empty(), "Should find 'runners' when searching for 'runner'");
     assert!(results[0].path.ends_with("test.rs"));
     
@@ -61,11 +63,12 @@ stemming:
     engine.rebuild_index().unwrap();
     
     // Test that singular form does NOT match plural when stemming is disabled
-    let results = engine.search("carrier", Some(10), None).unwrap();
+    let reranker_config = RerankerConfig { enabled: false, ..Default::default() };
+    let results = engine.search_with_reranker("carrier", Some(10), None, reranker_config.clone()).unwrap();
     assert!(results.is_empty(), "Should not find 'carriers' when searching for 'carrier' with stemming disabled");
     
     // But exact matches should still work
-    let results = engine.search("carriers", Some(10), None).unwrap();
+    let results = engine.search_with_reranker("carriers", Some(10), None, reranker_config).unwrap();
     assert!(!results.is_empty(), "Should find exact match 'carriers'");
     
     // Clean up temp files

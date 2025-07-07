@@ -27,7 +27,6 @@ impl Default for RerankerConfig {
 #[derive(Debug, Clone)]
 pub struct RerankDocument {
     pub content: String,
-    pub score: f32,
     pub metadata: HashMap<String, String>,
 }
 
@@ -143,24 +142,7 @@ impl Reranker {
         })
     }
 
-    /// Get the minimum number of candidates to fetch for effective reranking
-    pub fn min_candidates(&self) -> usize {
-        if self.config.enabled {
-            self.config.min_candidates
-        } else {
-            0
-        }
-    }
 
-    /// Check if reranker is enabled
-    pub fn is_enabled(&self) -> bool {
-        self.config.enabled
-    }
-
-    /// Get the current model being used
-    pub fn model(&self) -> &RerankerModel {
-        &self.config.model
-    }
 }
 
 /// Parse reranker model from string
@@ -198,30 +180,6 @@ mod tests {
         assert!(parse_reranker_model("invalid-model").is_err());
     }
 
-    #[test]
-    fn test_reranker_disabled() {
-        let config = RerankerConfig {
-            enabled: false,
-            ..Default::default()
-        };
-        
-        let reranker = Reranker::new(config).unwrap();
-        assert!(!reranker.is_enabled());
-        assert_eq!(reranker.min_candidates(), 0);
-    }
-
-    #[test]
-    fn test_reranker_enabled() {
-        let config = RerankerConfig {
-            enabled: true,
-            min_candidates: 15,
-            ..Default::default()
-        };
-        
-        let reranker = Reranker::new(config).unwrap();
-        assert!(reranker.is_enabled());
-        assert_eq!(reranker.min_candidates(), 15);
-    }
 
     #[test]
     fn test_rerank_disabled() {
@@ -235,7 +193,6 @@ mod tests {
         let docs = vec![
             RerankDocument {
                 content: "Test document".to_string(),
-                score: 1.0,
                 metadata: HashMap::new(),
             }
         ];

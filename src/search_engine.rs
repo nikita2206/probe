@@ -84,12 +84,6 @@ impl SearchEngine {
         Ok(())
     }
     
-    pub fn search(&self, query: &str, limit: Option<usize>, filetype: Option<&str>) -> Result<Vec<SearchResult>> {
-        let language = self.config.get_language()?;
-        let mut index = SearchIndex::open(&self.index_dir, language, self.config.stemming.enabled)?;
-        let results = index.search(query, limit.unwrap_or(5), filetype)?;
-        Ok(results)
-    }
     
     pub fn search_with_reranker(&self, query: &str, limit: Option<usize>, filetype: Option<&str>, reranker_config: RerankerConfig) -> Result<Vec<SearchResult>> {
         let language = self.config.get_language()?;
@@ -131,7 +125,6 @@ impl SearchEngine {
                 
                 RerankDocument {
                     content: result.snippet.clone(),
-                    score: result.score,
                     metadata,
                 }
             }).collect();
