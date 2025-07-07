@@ -72,11 +72,8 @@ probe combines the speed of full-text search with the intelligence of embedding-
 # Search for text in current directory
 probe "error handling"
 
-# Case-sensitive search
-probe "Error"
-
 # Complex queries
-probe "function main"
+probe "snippet generation"
 ```
 
 ### Index Management
