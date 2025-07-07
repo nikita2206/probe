@@ -30,7 +30,7 @@ struct Cli {
         short = 'n',
         long = "num-results",
         help = "Number of results to return",
-        default_value = "10"
+        default_value = "3"
     )]
     num_results: usize,
 
