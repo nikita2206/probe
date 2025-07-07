@@ -40,7 +40,7 @@ fn test_java_interface_method_declarations_appear_in_search_results() {
     copy_test_data(temp_path, "java_interface_test").expect("Failed to copy test data");
 
     // Run search for method declaration that should appear in results
-    let mut cmd = Command::cargo_bin("codesearch").unwrap();
+    let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
     let output = cmd
         .current_dir(temp_path)
         .arg("getUserById")
@@ -81,7 +81,7 @@ fn test_java_interface_multiple_methods_with_same_pattern() {
     copy_test_data(temp_path, "java_interface_test").expect("Failed to copy test data");
 
     // Search for a specific interface method
-    let mut cmd = Command::cargo_bin("codesearch").unwrap();
+    let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
     let output = cmd
         .current_dir(temp_path)
         .arg("createUser")
@@ -110,7 +110,7 @@ fn test_java_class_methods_work_correctly() {
     copy_test_data(temp_path, "java_interface_test").expect("Failed to copy test data");
 
     // Search for class methods (these should work fine)
-    let mut cmd = Command::cargo_bin("codesearch").unwrap();
+    let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
     let output = cmd
         .current_dir(temp_path)
         .arg("getId")

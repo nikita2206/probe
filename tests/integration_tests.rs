@@ -54,14 +54,14 @@ fn test_basic_search() {
     let project_path = temp_dir.path();
 
     // First ensure index is built
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
         .success();
 
     // Test search for "main" - should find main.rs
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "main"])
         .assert()
@@ -76,14 +76,14 @@ fn test_search_function_name() {
     let project_path = temp_dir.path();
 
     // Rebuild index
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
         .success();
 
     // Search for "calculate_sum" - should find lib.rs
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "calculate_sum"])
         .assert()
@@ -97,14 +97,14 @@ fn test_search_json_content() {
     let project_path = temp_dir.path();
 
     // Rebuild index
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
         .success();
 
     // Search for "database_url" - should find config.json
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "database_url"])
         .assert()
@@ -118,14 +118,14 @@ fn test_search_subdirectory() {
     let project_path = temp_dir.path();
 
     // Rebuild index
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
         .success();
 
     // Search for "HashMap" - should find utils/helper.rs
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "HashMap"])
         .assert()
@@ -139,14 +139,14 @@ fn test_gitignore_respected() {
     let project_path = temp_dir.path();
 
     // Rebuild index
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
         .success();
 
     // Search for "binary" - should NOT find binary.exe (ignored by .gitignore)
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "binary"])
         .assert()
@@ -160,14 +160,14 @@ fn test_gitignore_log_files() {
     let project_path = temp_dir.path();
 
     // Rebuild index
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
         .success();
 
     // Search for "indexed" - should find source.rs but NOT ignored.log
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "indexed"])
         .assert()
@@ -182,14 +182,14 @@ fn test_no_results_found() {
     let project_path = temp_dir.path();
 
     // Rebuild index
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
         .success();
 
     // Search for something that doesn't exist
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "nonexistent_term_xyz"])
         .assert()
@@ -203,14 +203,14 @@ fn test_stats_command() {
     let project_path = temp_dir.path();
 
     // Rebuild index first
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
         .success();
 
     // Test stats command
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "stats"])
         .assert()
@@ -225,7 +225,7 @@ fn test_incremental_update() {
     let project_path = temp_dir.path();
 
     // Initial index build
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
@@ -239,7 +239,7 @@ fn test_incremental_update() {
     .unwrap();
 
     // Search should trigger incremental update and find new content
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "new_function"])
         .assert()
@@ -249,7 +249,7 @@ fn test_incremental_update() {
 
 #[test]
 fn test_help_command() {
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .arg("--help")
         .assert()
@@ -262,7 +262,7 @@ fn test_help_command() {
 
 #[test]
 fn test_no_query_provided() {
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .assert()
         .success()
@@ -275,7 +275,7 @@ fn test_snippet_extraction_shows_match_location() {
     let project_path = temp_dir.path();
 
     // Rebuild index to include our test file
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
@@ -283,7 +283,7 @@ fn test_snippet_extraction_shows_match_location() {
 
     // Search for "archive lc" - this term appears around line 50+ in archive_test.rs
     // The snippet should show the area around the match, NOT the beginning of the file
-    let output = Command::cargo_bin("codesearch")
+    let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "archive lc"])
         .assert()
@@ -318,7 +318,7 @@ fn test_filetype_filtering() {
     let project_path = temp_dir.path();
 
     // Rebuild index
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
@@ -326,7 +326,7 @@ fn test_filetype_filtering() {
 
     // Search for "main" with filetype filter for "rs" files
     // Should find main.rs but not if there are other files with "main" in different extensions
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "-t", "rs", "main"])
         .assert()
@@ -335,7 +335,7 @@ fn test_filetype_filtering() {
 
     // Search for "database_url" with filetype filter for "json" files
     // Should find config.json
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "-d",
@@ -350,7 +350,7 @@ fn test_filetype_filtering() {
 
     // Search for "main" with filetype filter for "json" files
     // Should NOT find main.rs since it's not a json file
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "-t", "json", "main"])
         .assert()
@@ -364,7 +364,7 @@ fn test_filetype_filtering_markdown() {
     let project_path = temp_dir.path();
 
     // Rebuild index
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&["-d", project_path.to_str().unwrap(), "rebuild"])
         .assert()
@@ -372,7 +372,7 @@ fn test_filetype_filtering_markdown() {
 
     // Search for content in markdown files only
     // README.md should be found when searching for content with md filter
-    Command::cargo_bin("codesearch")
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .unwrap()
         .args(&[
             "-d",
