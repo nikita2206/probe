@@ -25,7 +25,6 @@ pub struct ProbeConfig {
     pub default_reranker: Option<String>,
 }
 
-
 impl ProbeConfig {
     /// Load configuration from file, with fallback to default
     pub fn load_from_file(config_path: Option<&PathBuf>) -> Result<Self> {
@@ -53,7 +52,6 @@ impl ProbeConfig {
 
         Ok(home_dir.join(".probe").join("config.yaml"))
     }
-
 
     /// Get a custom reranker model by name
     pub fn get_custom_model(&self, model_name: &str) -> Option<&CustomRerankerModel> {
