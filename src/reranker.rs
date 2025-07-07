@@ -1,7 +1,92 @@
 use anyhow::{Context, Result};
-use fastembed::{RerankInitOptions, RerankerModel, TextRerank};
+use fastembed::{RerankInitOptions, RerankInitOptionsUserDefined, RerankerModel, TextRerank, UserDefinedRerankingModel, OnnxSource};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::path::PathBuf;
+
+/// Custom reranker model configuration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomRerankerModel {
+    pub description: String,
+    pub model_code: String,
+    pub model_file: String,
+    pub additional_files: Vec<String>,
+}
+
+/// Configuration file structure
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProbeConfig {
+    pub custom_rerankers: HashMap<String, CustomRerankerModel>,
+    #[serde(default)]
+    pub default_reranker: Option<String>,
+}
+
+impl Default for ProbeConfig {
+    fn default() -> Self {
+        Self {
+            custom_rerankers: HashMap::new(),
+            default_reranker: None,
+        }
+    }
+}
+
+impl ProbeConfig {
+    /// Load configuration from file, with fallback to default
+    pub fn load_from_file(config_path: Option<&PathBuf>) -> Result<Self> {
+        let config_path = match config_path {
+            Some(path) => path.clone(),
+            None => Self::default_config_path()?,
+        };
+
+        if !config_path.exists() {
+            return Ok(Self::default());
+        }
+
+        let config_content = std::fs::read_to_string(&config_path)
+            .with_context(|| format!("Failed to read config file: {}", config_path.display()))?;
+
+        let config: ProbeConfig = serde_yaml::from_str(&config_content)
+            .with_context(|| format!("Failed to parse config file: {}", config_path.display()))?;
+
+        Ok(config)
+    }
+
+    /// Get the default configuration file path (~/.probe/config.yaml)
+    pub fn default_config_path() -> Result<PathBuf> {
+        let home_dir = dirs::home_dir()
+            .context("Failed to get home directory")?;
+        
+        Ok(home_dir.join(".probe").join("config.yaml"))
+    }
+
+    /// Save configuration to file
+    pub fn save_to_file(&self, config_path: Option<&PathBuf>) -> Result<()> {
+        let config_path = match config_path {
+            Some(path) => path.clone(),
+            None => Self::default_config_path()?,
+        };
+
+        // Create parent directory if it doesn't exist
+        if let Some(parent) = config_path.parent() {
+            std::fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create config directory: {}", parent.display()))?;
+        }
+
+        let config_content = serde_yaml::to_string(self)
+            .context("Failed to serialize config")?;
+
+        std::fs::write(&config_path, config_content)
+            .with_context(|| format!("Failed to write config file: {}", config_path.display()))?;
+
+        Ok(())
+    }
+
+    /// Get a custom reranker model by name
+    pub fn get_custom_model(&self, model_name: &str) -> Option<&CustomRerankerModel> {
+        self.custom_rerankers.get(model_name)
+    }
+}
 
 /// Configuration for the reranker
 #[derive(Debug, Clone)]
@@ -10,6 +95,8 @@ pub struct RerankerConfig {
     pub model: RerankerModel,
     pub min_candidates: usize,
     pub show_download_progress: bool,
+    pub custom_model: Option<String>,
+    pub probe_config: Option<ProbeConfig>,
 }
 
 impl Default for RerankerConfig {
@@ -19,6 +106,8 @@ impl Default for RerankerConfig {
             model: RerankerModel::BGERerankerBase,
             min_candidates: 10,
             show_download_progress: false,
+            custom_model: None,
+            probe_config: None,
         }
     }
 }
@@ -35,6 +124,83 @@ pub struct RerankDocument {
 pub struct RerankResult {
     pub documents: Vec<RerankDocument>,
     pub rerank_scores: Vec<f32>,
+}
+
+/// Downloads a custom HuggingFace model using configuration and returns the local file paths
+fn download_hf_model_sync(custom_model: &CustomRerankerModel, _cache_dir: &PathBuf) -> Result<(PathBuf, PathBuf, PathBuf)> {
+    use hf_hub::api::sync::Api;
+    use hf_hub::Repo;
+    
+    // Create API with cache directory
+    let api = Api::new()?;
+    
+    let repo = api.repo(Repo::model(custom_model.model_code.clone()));
+    
+    // Download custom HuggingFace model
+    println!("Downloading custom reranking model: {} ({})", custom_model.model_code, custom_model.description);
+    
+    // Download the main model file
+    let model_path = repo.get(&custom_model.model_file)
+        .with_context(|| format!("Failed to download {} for model {}", custom_model.model_file, custom_model.model_code))?;
+    
+    // Download additional files specified in config
+    for additional_file in &custom_model.additional_files {
+        let _additional_path = repo.get(additional_file)
+            .with_context(|| format!("Failed to download {} for model {}", additional_file, custom_model.model_code))?;
+    }
+    
+    // Download required tokenizer and config files
+    let tokenizer_path = repo.get("tokenizer.json")
+        .with_context(|| format!("Failed to download tokenizer.json for model {}", custom_model.model_code))?;
+    
+    let config_path = repo.get("config.json")
+        .with_context(|| format!("Failed to download config.json for model {}", custom_model.model_code))?;
+    
+    // Download additional tokenizer files that might be needed
+    let _special_tokens_path = repo.get("special_tokens_map.json").ok();
+    let _tokenizer_config_path = repo.get("tokenizer_config.json").ok();
+    
+    Ok((model_path, tokenizer_path, config_path))
+}
+
+/// Creates a UserDefinedRerankingModel from downloaded HuggingFace model files
+fn create_user_defined_model(model_path: PathBuf, tokenizer_path: PathBuf, config_path: PathBuf) -> Result<UserDefinedRerankingModel> {
+    use fastembed::TokenizerFiles;
+    use std::fs;
+    
+    // Read the files into byte vectors as required by TokenizerFiles
+    let tokenizer_bytes = fs::read(&tokenizer_path)
+        .context("Failed to read tokenizer file")?;
+    let config_bytes = fs::read(&config_path)
+        .context("Failed to read config file")?;
+    
+    // Try to read special tokens map if it exists
+    let special_tokens_bytes = {
+        let special_tokens_path = tokenizer_path.parent()
+            .unwrap()
+            .join("special_tokens_map.json");
+        fs::read(&special_tokens_path).unwrap_or_default()
+    };
+    
+    // Try to read tokenizer config if it exists
+    let tokenizer_config_bytes = {
+        let tokenizer_config_path = tokenizer_path.parent()
+            .unwrap()
+            .join("tokenizer_config.json");
+        fs::read(&tokenizer_config_path).unwrap_or_default()
+    };
+    
+    let tokenizer_files = TokenizerFiles {
+        tokenizer_file: tokenizer_bytes,
+        config_file: config_bytes,
+        special_tokens_map_file: special_tokens_bytes,
+        tokenizer_config_file: tokenizer_config_bytes,
+    };
+    
+    Ok(UserDefinedRerankingModel::new(
+        OnnxSource::File(model_path),
+        tokenizer_files,
+    ))
 }
 
 /// Reranker wrapper that manages the fastembed reranking model
@@ -64,17 +230,41 @@ impl Reranker {
                     .join("codesearch-fastembed")
             });
 
-        let model = TextRerank::try_new(
-            RerankInitOptions::new(config.model.clone())
-                .with_show_download_progress(config.show_download_progress)
-                .with_cache_dir(cache_dir),
-        )
-        .context("Failed to initialize reranking model")?;
+        let model = if let Some(custom_model_name) = &config.custom_model {
+            // Use custom HuggingFace model
+            let probe_config = config.probe_config.as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Probe configuration is required when using custom models"))?;
+            Self::create_custom_model(custom_model_name, &cache_dir, probe_config)?
+        } else {
+            // Use built-in model
+            TextRerank::try_new(
+                RerankInitOptions::new(config.model.clone())
+                    .with_show_download_progress(config.show_download_progress)
+                    .with_cache_dir(cache_dir),
+            )
+            .context("Failed to initialize reranking model")?
+        };
 
         Ok(Self {
             model: Arc::new(model),
             config,
         })
+    }
+
+    /// Create a custom model from HuggingFace using configuration
+    fn create_custom_model(model_name: &str, cache_dir: &PathBuf, probe_config: &ProbeConfig) -> Result<TextRerank> {
+        // Look up the custom model in the config
+        let custom_model = probe_config.get_custom_model(model_name)
+            .ok_or_else(|| anyhow::anyhow!("Custom model '{}' not found in configuration. Please add it to your config file.", model_name))?;
+        
+        let (model_path, tokenizer_path, config_path) = download_hf_model_sync(custom_model, cache_dir)?;
+        
+        let user_defined_model = create_user_defined_model(model_path, tokenizer_path, config_path)?;
+        
+        let options = RerankInitOptionsUserDefined::default();
+        
+        TextRerank::try_new_from_user_defined(user_defined_model, options)
+            .context("Failed to create custom model from user-defined model")
     }
 
     /// Create a dummy model for disabled reranker (won't be used)
@@ -203,5 +393,17 @@ mod tests {
         let result = reranker.rerank("test query", docs.clone(), None).unwrap();
         assert_eq!(result.documents.len(), 1);
         assert_eq!(result.rerank_scores.len(), 0);
+    }
+
+    #[test]
+    fn test_custom_model_config() {
+        let config = RerankerConfig {
+            enabled: true,
+            custom_model: Some("custom/model".to_string()),
+            ..Default::default()
+        };
+
+        assert!(config.custom_model.is_some());
+        assert_eq!(config.custom_model.as_ref().unwrap(), "custom/model");
     }
 }

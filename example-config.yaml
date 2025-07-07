@@ -1,0 +1,22 @@
+# Default reranker to use when --rerank-model is not specified
+default_reranker: "bge-reranker-v2-m3-quant"
+
+custom_rerankers:
+  bge-reranker-v2-m3-quant:
+    description: "ONNX version of Quantized model of bge-reranker-v2-m3"
+    model_code: "sudhanshu746/bge-reranker-v2-m3-quant-onnx"
+    model_file: "model.onnx"
+    additional_files:
+      - "model.onnx.data"
+  
+  bge-reranker-large:
+    description: "BAAI BGE reranker large model"
+    model_code: "BAAI/bge-reranker-large"
+    model_file: "model.onnx"
+    additional_files: []
+  
+  ms-marco-minilm:
+    description: "Cross-encoder model trained on MS MARCO"
+    model_code: "cross-encoder/ms-marco-MiniLM-L-12-v2"
+    model_file: "pytorch_model.onnx"
+    additional_files: []

@@ -1,10 +1,10 @@
 # 🔎 probe (pb)
 
-**probe** is a smart code search tool that works like grep but with better results. It runs locally on your machine with no servers or dependencies, using BM25 full-text search and ML reranking to find what you're actually looking for.
+**probe** is a smart code search tool that works like grep but with better results. It runs locally on your machine with no servers or dependencies, using full-text search with embedding-based reranking to find what you're actually looking for.
 
 ## Features
 
-- **BM25 full-text search** - Better relevance scoring than simple text matching
+- **Full-text search** - Better relevance scoring than simple text matching
 - **ML-powered reranking** - Language model embeddings boost relevant results
 - **Works offline** - No servers, APIs, or network dependencies
 - **Respects gitignore** - Skips ignored files and binary files automatically
@@ -52,7 +52,7 @@ cargo install --git https://github.com/nikita2206/probe
 
 ## Why probe?
 
-**Better than grep**: Uses BM25 scoring to rank results by relevance, not just pattern matching. ML reranking puts the most useful results first.
+**Better than grep**: Uses full-text search to rank results by relevance, not just pattern matching. Embedding-based reranking puts the most useful results first.
 
 **Perfect for AI agents**: Great alternative to vector search for AI coding assistants. Works offline, no API calls needed.
 
@@ -62,7 +62,7 @@ cargo install --git https://github.com/nikita2206/probe
 
 ## Performance
 
-probe combines the speed of full-text search with the intelligence of ML reranking. The BM25 scoring provides fast initial results, while the embedding-based reranking ensures the most relevant matches appear at the top.
+probe combines the speed of full-text search with the intelligence of embedding-based reranking. The full-text search provides fast initial results (pulling at least 10 most-relevant results), while the embedding-based reranking ensures the most relevant matches appear at the top.
 
 ## Usage
 
@@ -102,9 +102,9 @@ probe --dir ~/code/my-project "function"
 ## How it works
 
 1. **File Discovery**: Scans directories using the same `.gitignore` logic as Git
-2. **Full-text Indexing**: Creates a BM25-scored search index using Tantivy
-3. **ML Reranking**: Uses language model embeddings to boost contextually relevant results
-4. **Smart Results**: Combines BM25 scores with semantic similarity for optimal ranking
+2. **Full-text Indexing**: Creates a full-text search index using Tantivy
+3. **Embedding Reranking**: Uses language model embeddings to boost contextually relevant results
+4. **Smart Results**: Combines full-text search scores with semantic similarity for optimal ranking
 
 The index is stored in a `.codesearch/` directory in your project root and is automatically managed.
 

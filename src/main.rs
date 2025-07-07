@@ -8,8 +8,10 @@ mod search_index;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use reranker::{available_models, parse_reranker_model, RerankerConfig};
+use reranker::{available_models, parse_reranker_model, RerankerConfig, ProbeConfig};
 use search_engine::SearchEngine;
+use std::path::PathBuf;
+use fastembed::RerankerModel;
 
 #[derive(Parser)]
 #[command(name = "codesearch")]
@@ -37,10 +39,9 @@ struct Cli {
 
     #[arg(
         long = "rerank-model",
-        help = "Reranking model to use",
-        default_value = "bge-reranker-base"
+        help = "Reranking model to use (built-in: bge-reranker-base, bge-reranker-v2-m3, etc. or custom model name from config)"
     )]
-    rerank_model: String,
+    rerank_model: Option<String>,
 
     #[arg(
         long = "rerank-candidates",
@@ -48,6 +49,12 @@ struct Cli {
         default_value = "10"
     )]
     rerank_candidates: usize,
+
+    #[arg(
+        long = "config",
+        help = "Path to configuration file (default: ~/.probe/config.yaml)"
+    )]
+    config_path: Option<PathBuf>,
 
     #[arg(help = "Search query")]
     query: Option<String>,
@@ -85,12 +92,36 @@ fn main() -> Result<()> {
         }
         None => {
             if let Some(query) = cli.query {
+                // Load configuration
+                let probe_config = ProbeConfig::load_from_file(cli.config_path.as_ref())?;
+
+                // Determine which model to use - check if it's a built-in model or custom model
+                let (builtin_model, custom_model) = if let Some(model_name) = &cli.rerank_model {
+                    if let Ok(builtin) = parse_reranker_model(model_name) {
+                        // It's a built-in model
+                        (builtin, None)
+                    } else if probe_config.get_custom_model(model_name).is_some() {
+                        // It's a custom model from config
+                        (RerankerModel::BGERerankerBase, Some(model_name.clone())) // Use default built-in as fallback
+                    } else {
+                        return Err(anyhow::anyhow!("Unknown reranker model '{}'. Use a built-in model (bge-reranker-base, bge-reranker-v2-m3, etc.) or add it to your config file.", model_name));
+                    }
+                } else if let Some(default_custom) = &probe_config.default_reranker {
+                    // Use default custom model from config
+                    (RerankerModel::BGERerankerBase, Some(default_custom.clone()))
+                } else {
+                    // Fall back to built-in default
+                    (RerankerModel::BGERerankerBase, None)
+                };
+
                 // Create reranker config
                 let reranker_config = RerankerConfig {
                     enabled: !cli.no_rerank,
-                    model: parse_reranker_model(&cli.rerank_model)?,
+                    model: builtin_model,
                     min_candidates: cli.rerank_candidates,
                     show_download_progress: true,
+                    custom_model,
+                    probe_config: Some(probe_config),
                 };
 
                 let engine = SearchEngine::new(&root_dir)?;
