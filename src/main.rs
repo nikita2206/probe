@@ -8,10 +8,10 @@ mod search_index;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use reranker::{available_models, parse_reranker_model, RerankerConfig, ProbeConfig};
+use fastembed::RerankerModel;
+use reranker::{available_models, parse_reranker_model, ProbeConfig, RerankerConfig};
 use search_engine::SearchEngine;
 use std::path::PathBuf;
-use fastembed::RerankerModel;
 
 #[derive(Parser)]
 #[command(name = "codesearch")]
@@ -102,7 +102,8 @@ fn main() -> Result<()> {
                         (builtin, None)
                     } else if probe_config.get_custom_model(model_name).is_some() {
                         // It's a custom model from config
-                        (RerankerModel::BGERerankerBase, Some(model_name.clone())) // Use default built-in as fallback
+                        (RerankerModel::BGERerankerBase, Some(model_name.clone()))
+                    // Use default built-in as fallback
                     } else {
                         return Err(anyhow::anyhow!("Unknown reranker model '{}'. Use a built-in model (bge-reranker-base, bge-reranker-v2-m3, etc.) or add it to your config file.", model_name));
                     }
