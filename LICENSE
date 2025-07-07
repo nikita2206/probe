@@ -1,0 +1,82 @@
+PROBE DUAL LICENSE
+
+This project is dual-licensed under the MIT License and the Probe Commercial License.
+
+===============================================================================
+
+MIT LICENSE (For Non-Commercial Agentic Use)
+
+Copyright (c) 2024 Nikita Popov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+EXCLUSION: The above MIT License does NOT apply to Commercial Agentic Use as 
+defined below.
+
+===============================================================================
+
+PROBE COMMERCIAL LICENSE (For Commercial Agentic Use)
+
+For any Commercial Agentic Use, you must obtain a separate commercial license
+from the copyright holder.
+
+COMMERCIAL AGENTIC USE is defined as:
+1. Integrating this software into any artificial intelligence agent, assistant, 
+   or automated system that is:
+   - Offered as a commercial service or product
+   - Used in the provision of commercial services
+   - Embedded in commercial software or platforms
+   - Used to generate revenue directly or indirectly
+
+2. Using this software as a component in any commercial AI workflow, including
+   but not limited to:
+   - AI-powered development tools
+   - Code analysis services
+   - Automated code search platforms
+   - AI coding assistants
+   - Developer productivity tools
+
+3. Distributing or sublicensing this software as part of any commercial AI
+   offering or service.
+
+Examples of Commercial Agentic Use requiring a license:
+- Integrating probe into a paid AI coding assistant
+- Using probe in a commercial code analysis service
+- Embedding probe in an AI-powered development platform
+- Offering probe functionality through a paid API or service
+
+Examples of use that remain under MIT License:
+- Individual developers using probe for personal projects
+- Internal use within a company for their own development
+- Open source projects integrating probe
+- Educational or research use
+- Non-commercial tools and utilities
+
+To obtain a commercial license for Commercial Agentic Use, please contact:
+inefedor@gmail.com
+
+===============================================================================
+
+This dual licensing approach allows:
+- Free use for individual developers, open source projects, and non-commercial use
+- Ensures commercial AI companies contribute back to support development
+- Maintains the open source nature of the project while protecting commercial interests
+
+If you are unsure whether your use case requires a commercial license, please
+contact the copyright holder for clarification.
