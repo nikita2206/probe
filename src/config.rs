@@ -33,7 +33,7 @@ impl Config {
     }
 
     pub fn load_from_dir<P: AsRef<Path>>(dir_path: P) -> Result<Self> {
-        let config_path = dir_path.as_ref().join("codesearch.yml");
+        let config_path = dir_path.as_ref().join("probe.yml");
         if config_path.exists() {
             Self::load_from_file(config_path)
         } else {

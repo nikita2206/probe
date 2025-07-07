@@ -14,7 +14,7 @@ use search_engine::SearchEngine;
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "codesearch")]
+#[command(name = "probe")]
 #[command(about = "Fast code search with persistent indexing")]
 struct Cli {
     #[command(subcommand)]
@@ -179,7 +179,7 @@ fn main() -> Result<()> {
                     }
                 }
             } else {
-                println!("Usage: codesearch <query> or codesearch --help");
+                println!("Usage: probe <query> or probe --help");
             }
         }
     }

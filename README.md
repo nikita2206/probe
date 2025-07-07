@@ -103,7 +103,7 @@ probe --dir ~/code/my-project "function"
 3. **Embedding Reranking**: Uses language model embeddings to boost contextually relevant results
 4. **Smart Results**: Combines full-text search scores with semantic similarity for optimal ranking
 
-The index is stored in a `.codesearch/` directory in your project root and is automatically managed.
+The index is stored in a `.probe/` directory in your project root and is automatically managed.
 
 For details on search scoring, see [SCORING_GUIDE.md](SCORING_GUIDE.md). For query syntax, see [Tantivy's query documentation](https://docs.rs/tantivy/latest/tantivy/query/index.html).
 
@@ -113,7 +113,9 @@ probe works with zero configuration, but you can customize behavior:
 
 - Respects `.gitignore` files automatically
 - Skips binary files and common non-text formats
-- Excludes the `.codesearch/` index directory from searches
+- Excludes the `.probe/` index directory from searches
+
+For detailed configuration options including project settings (`probe.yml`) and custom reranking models, see [CONFIG.md](CONFIG.md).
 
 ## Building from Source
 

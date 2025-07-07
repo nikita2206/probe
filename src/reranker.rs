@@ -224,7 +224,7 @@ impl Reranker {
                 // Default to a cache directory in the user's cache directory
                 dirs::cache_dir()
                     .unwrap_or_else(std::env::temp_dir)
-                    .join("codesearch-fastembed")
+                    .join("probe-fastembed")
             });
 
         let model = if let Some(custom_model_name) = &config.custom_model {
@@ -284,7 +284,7 @@ impl Reranker {
                 // Default to a cache directory in the user's cache directory
                 dirs::cache_dir()
                     .unwrap_or_else(std::env::temp_dir)
-                    .join("codesearch-fastembed")
+                    .join("probe-fastembed")
             });
 
         TextRerank::try_new(

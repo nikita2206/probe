@@ -1,10 +1,10 @@
 # Search Query Scoring Guide
 
-This guide explains how to write effective search queries for codesearch-rs and how the scoring system works.
+This guide explains how to write effective search queries for probe and how the scoring system works.
 
 ## Overview
 
-codesearch-rs uses the Tantivy search library to provide fast, full-text search with relevance scoring. The search engine considers multiple factors when ranking results to show the most relevant code matches first.
+probe uses the Tantivy search library to provide fast, full-text search with relevance scoring. The search engine considers multiple factors when ranking results to show the most relevant code matches first.
 
 ## Field Boosting
 
@@ -24,10 +24,10 @@ You can boost specific terms in your search using the `^` operator:
 
 ```bash
 # Boost "async" term 2x, "await" term 0.5x
-codesearch-rs "async^2.0 await^0.5"
+probe "async^2.0 await^0.5"
 
 # Boost exact phrase matches
-codesearch-rs "error handling^1.5"
+probe "error handling^1.5"
 ```
 
 ### Field-Specific Searches
@@ -36,13 +36,13 @@ Target specific fields using field prefixes:
 
 ```bash
 # Search only in file paths
-codesearch-rs "path:src/handlers"
+probe "path:src/handlers"
 
 # Search only in content
-codesearch-rs "content:database"
+probe "content:database"
 
 # Combine field searches with boosting
-codesearch-rs "path:test^2.0 OR content:unittest"
+probe "path:test^2.0 OR content:unittest"
 ```
 
 ## Proximity and Phrase Matching
@@ -53,10 +53,10 @@ Use quotes for exact phrase matching:
 
 ```bash
 # Find exact phrase
-codesearch-rs "error handling"
+probe "error handling"
 
 # Find phrases with some flexibility
-codesearch-rs "\"async function\"~2"
+probe "\"async function\"~2"
 ```
 
 ### Proximity Search
@@ -65,7 +65,7 @@ The `~` operator allows words to appear near each other:
 
 ```bash
 # Allow up to 2 words between "async" and "function"
-codesearch-rs "\"async function\"~2"
+probe "\"async function\"~2"
 
 # This would match: "async def my_function", "async fn", etc.
 ```
@@ -76,23 +76,23 @@ codesearch-rs "\"async function\"~2"
 
 ```bash
 # AND (both terms must appear)
-codesearch-rs "database AND connection"
+probe "database AND connection"
 
 # OR (either term can appear)
-codesearch-rs "error OR exception"
+probe "error OR exception"
 
 # NOT (exclude terms)
-codesearch-rs "function NOT test"
+probe "function NOT test"
 ```
 
 ### Wildcards
 
 ```bash
 # Wildcard matching
-codesearch-rs "handle*"  # matches "handler", "handling", etc.
+probe "handle*"  # matches "handler", "handling", etc.
 
 # Combine with field targeting
-codesearch-rs "path:*.js AND react"
+probe "path:*.js AND react"
 ```
 
 ## Scoring Factors
@@ -111,33 +111,33 @@ The search engine considers several factors when ranking results:
 
 ```bash
 # Good: Target specific code constructs
-codesearch-rs "function handleError"
+probe "function handleError"
 
 # Better: Use field boosting for precision
-codesearch-rs "path:error^2.0 function^1.5"
+probe "path:error^2.0 function^1.5"
 
 # Best: Combine techniques
-codesearch-rs "\"error handling\"~1 OR path:exception^2.0"
+probe "\"error handling\"~1 OR path:exception^2.0"
 ```
 
 ### For Finding Definitions
 
 ```bash
 # Find class definitions
-codesearch-rs "class UserManager"
+probe "class UserManager"
 
 # Find function definitions with boosting
-codesearch-rs "\"function connect\"^2.0 OR \"def connect\"^2.0"
+probe "\"function connect\"^2.0 OR \"def connect\"^2.0"
 ```
 
 ### For Code Patterns
 
 ```bash
 # Find async patterns
-codesearch-rs "\"async def\"~1 OR \"async function\"~1"
+probe "\"async def\"~1 OR \"async function\"~1"
 
 # Find error handling patterns
-codesearch-rs "\"try catch\"~2 OR \"except\"^1.5"
+probe "\"try catch\"~2 OR \"except\"^1.5"
 ```
 
 ## Query Examples
@@ -145,28 +145,28 @@ codesearch-rs "\"try catch\"~2 OR \"except\"^1.5"
 ### Finding Functions
 ```bash
 # Find all functions named "validate"
-codesearch-rs "function validate OR def validate"
+probe "function validate OR def validate"
 
 # Find validation functions with boosting
-codesearch-rs "\"validate\"^2.0 AND (function OR def)"
+probe "\"validate\"^2.0 AND (function OR def)"
 ```
 
 ### Finding Imports/Dependencies
 ```bash
 # Find imports of specific modules
-codesearch-rs "import react OR from react"
+probe "import react OR from react"
 
 # Find require statements
-codesearch-rs "require('express') OR require(\"express\")"
+probe "require('express') OR require(\"express\")"
 ```
 
 ### Finding Test Code
 ```bash
 # Find test functions
-codesearch-rs "path:test^2.0 AND (function OR def)"
+probe "path:test^2.0 AND (function OR def)"
 
 # Find specific test patterns
-codesearch-rs "\"it should\"~2 OR \"test_\"^1.5"
+probe "\"it should\"~2 OR \"test_\"^1.5"
 ```
 
 ## Tips
@@ -181,7 +181,7 @@ The scoring system is designed to surface the most relevant code matches based o
 
 ## Reranking for Better Results
 
-codesearch-rs includes AI-powered reranking that improves search relevance by re-ordering results based on semantic similarity to your query.
+probe includes AI-powered reranking that improves search relevance by re-ordering results based on semantic similarity to your query.
 
 ### How Reranking Works
 
@@ -193,23 +193,23 @@ codesearch-rs includes AI-powered reranking that improves search relevance by re
 
 ```bash
 # Reranking is enabled by default
-codesearch-rs "error handling"
+probe "error handling"
 
 # Disable reranking for faster searches
-codesearch-rs --no-rerank "error handling"
+probe --no-rerank "error handling"
 
 # Use a different reranking model
-codesearch-rs --rerank-model jina-reranker-v2-base-multilingual "error handling"
+probe --rerank-model jina-reranker-v2-base-multilingual "error handling"
 
 # Adjust candidate pool size (more candidates = better reranking)
-codesearch-rs --rerank-candidates 20 "error handling"
+probe --rerank-candidates 20 "error handling"
 ```
 
 ### Available Reranking Models
 
 ```bash
 # List all available models
-codesearch-rs list-models
+probe list-models
 ```
 
 - **bge-reranker-base**: Default, good balance of speed and accuracy

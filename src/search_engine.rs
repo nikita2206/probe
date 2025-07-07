@@ -17,7 +17,7 @@ pub struct SearchEngine {
 impl SearchEngine {
     pub fn new<P: AsRef<Path>>(root_dir: P) -> Result<Self> {
         let root_path = root_dir.as_ref().to_path_buf();
-        let index_dir = root_path.join(".codesearch");
+        let index_dir = root_path.join(".probe");
         let metadata_path = index_dir.join("metadata.bin");
         let config = Config::load_from_dir(&root_path)?;
 

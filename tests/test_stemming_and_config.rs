@@ -18,7 +18,7 @@ stemming:
   enabled: true
   language: english
 "#;
-    let config_file = temp_dir.path().join("codesearch.yml");
+    let config_file = temp_dir.path().join("probe.yml");
     fs::write(&config_file, config_content).unwrap();
 
     // Create search engine and rebuild index
@@ -68,7 +68,7 @@ stemming:
   enabled: false
   language: english
 "#;
-    let config_file = temp_dir.path().join("codesearch.yml");
+    let config_file = temp_dir.path().join("probe.yml");
     fs::write(&config_file, config_content).unwrap();
 
     // Create search engine and rebuild index
@@ -114,7 +114,7 @@ stemming:
   enabled: false
   language: french
 "#;
-    let config_file = temp_dir.path().join("codesearch.yml");
+    let config_file = temp_dir.path().join("probe.yml");
     fs::write(&config_file, config_content).unwrap();
 
     let config = Config::load_from_dir(temp_dir.path()).unwrap();
@@ -147,7 +147,7 @@ stemming:
 "#,
             lang_full
         );
-        let config_file = temp_dir.path().join("codesearch.yml");
+        let config_file = temp_dir.path().join("probe.yml");
         fs::write(&config_file, &config_content).unwrap();
 
         let config = Config::load_from_dir(temp_dir.path()).unwrap();
@@ -188,7 +188,7 @@ stemming:
   enabled: true
   language: invalid_language
 "#;
-    let config_file = temp_dir.path().join("codesearch.yml");
+    let config_file = temp_dir.path().join("probe.yml");
     fs::write(&config_file, config_content).unwrap();
 
     let config = Config::load_from_dir(temp_dir.path()).unwrap();

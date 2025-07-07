@@ -1,6 +1,6 @@
 # Sample Project
 
-This is a sample project for testing the codesearch functionality.
+This is a sample project for testing the probe functionality.
 
 ## Features
 

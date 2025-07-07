@@ -1,14 +1,35 @@
-# Custom Reranker Configuration
+# Probe Configuration
 
-This document explains how to configure custom HuggingFace reranking models using the configuration file approach.
+This document explains how to configure probe's search behavior and reranking models.
 
-## Configuration File Location
+## Project Configuration (probe.yml)
 
-By default, the configuration file is located at `~/.probe/config.yaml`. You can specify a custom location using the `--config` CLI option.
+Probe supports per-project configuration via a `probe.yml` file in the project root.
 
-## Configuration File Format
+### Stemming Configuration
 
-The configuration file uses YAML format with the following structure:
+```yaml
+stemming:
+  enabled: true
+  language: english
+```
+
+**Supported Languages:**
+- english / en (default)
+- french / fr, german / de, italian / it, portuguese / pt, spanish / es
+- dutch / nl, danish / da, finnish / fi, hungarian / hu, norwegian / no
+- romanian / ro, russian / ru, swedish / sv, tamil / ta, turkish / tr
+
+**Behavior:**
+- When enabled: Queries are stemmed to match word variations (e.g., "run" matches "running", "runs")
+- When disabled: Only exact word matches are found
+- Default: Enabled with English language
+
+## User Configuration (~/.probe/config.yaml)
+
+Global user configuration for reranking models and preferences. Default location: `~/.probe/config.yaml` (override with `--config` flag).
+
+### Custom Reranker Configuration
 
 ```yaml
 # Optional: Default reranker to use when --rerank-model is not specified

@@ -22,9 +22,9 @@ impl FileScanner {
             .git_global(true) // Respect global gitignore
             .git_exclude(true) // Respect .git/info/exclude
             .filter_entry(|entry| {
-                // Exclude .codesearch directory to avoid indexing our own files
+                // Exclude .probe directory to avoid indexing our own files
                 if let Some(name) = entry.file_name().to_str() {
-                    if name == ".codesearch" && entry.path().is_dir() {
+                    if name == ".probe" && entry.path().is_dir() {
                         return false;
                     }
                 }
