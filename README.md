@@ -16,10 +16,10 @@
 
 ```bash
 # Search in current directory
-probe "function main"
+probe "snippet generation"
 
 # Search in specific directory
-probe -d /path/to/project "TODO"
+probe -d /path/to/project "cli argument parsing"
 
 # Rebuild index (rarely needed)
 probe rebuild
