@@ -258,9 +258,10 @@ impl SearchIndex {
         let top_docs = searcher.search(&final_query, &TopDocs::with_limit(limit))?;
         let mut results = Vec::new();
         
-        // Create snippet generator for proper match detection - re-parse query for snippet
+        // Create snippet generators for both body and declaration fields
         let snippet_query = query_parser.parse_query(query_str)?;
         let snippet_generator = SnippetGenerator::create(&searcher, &*snippet_query, self.body_field)?;
+        let declaration_snippet_generator = SnippetGenerator::create(&searcher, &*snippet_query, self.declaration_field)?;
         
         for (score, doc_address) in top_docs {
             let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
@@ -294,15 +295,27 @@ impl SearchIndex {
                 .and_then(|v| v.as_u64())
                 .map(|n| n as usize);
             
-            // Generate snippet with highlighting - for methods/functions, show full body
-            let content = retrieved_doc
+            // Generate snippet with highlighting - for methods/functions, show full content
+            let body_content = retrieved_doc
                 .get_first(self.body_field)
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            
+            let declaration_content = retrieved_doc
+                .get_first(self.declaration_field)
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
                 
             let snippet_text = if matches!(chunk_type.as_deref(), Some("Function") | Some("Method")) {
                 // For methods and functions, show the full content with highlighting
-                self.highlight_full_content(content, &snippet_generator)?
+                if body_content.trim().is_empty() {
+                    // For methods without bodies (e.g., interface methods), use declaration content
+                    self.highlight_full_content(declaration_content, &declaration_snippet_generator)?
+                } else {
+                    // For methods with bodies, combine declaration and body for complete context
+                    let combined_content = format!("{}\n{}", declaration_content, body_content);
+                    self.highlight_full_content(&combined_content, &snippet_generator)?
+                }
             } else {
                 // For other chunk types, use the default snippet behavior
                 let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
