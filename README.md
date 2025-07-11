@@ -1,14 +1,15 @@
 # 🔎 probe (pb)
 
-**probe** is a smart code search tool that works like grep but with better results. It runs locally on your machine with no servers or dependencies, using full-text search with embedding-based reranking to find what you're actually looking for.
+**probe** is a smart code search tool that works in the shell like grep, but implements full-text search.
+It runs locally on your machine with no servers or dependencies, using full-text search with embedding-based reranking to help you, or your AI assistant find what you're looking for.
 
 ## Features
 
 - **Full-text search** - Better relevance scoring than simple text matching
-- **ML-powered reranking** - Language model embeddings boost relevant results
-- **Works offline** - No servers, APIs, or network dependencies
+- **ML-powered reranking** - Reranking language model boosts more relevant results
+- **Works offline** - No servers, APIs, or other dependencies (after the reranker model is downloaded from HuggingFace)
 - **Respects gitignore** - Skips ignored files and binary files automatically
-- **Fast updates** - Only reindex changed files
+- **Fast updates** - Only reindex changed files, the reindexing is performed on-the-fly
 - **Cross-platform** - Works on Linux, macOS, and Windows
 - **Zero setup** - Works out of the box in any directory
 
@@ -21,7 +22,7 @@ probe "snippet generation"
 # Search in specific directory
 probe -d /path/to/project "cli argument parsing"
 
-# Rebuild index (rarely needed)
+# Rebuild index (only useful for development of probe itself)
 probe rebuild
 
 # Show index statistics
@@ -79,7 +80,7 @@ probe "snippet generation"
 ### Index Management
 
 ```bash
-# Rebuild index from scratch (automatically detects changes)
+# Rebuild index from scratch (normally not needed, probe is able to reindex on-the-fly when searching files change)
 probe rebuild
 
 # Show index statistics and file counts
