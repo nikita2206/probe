@@ -1,10 +1,20 @@
-pub mod code_chunker;
 pub mod config;
 pub mod file_scanner;
-pub mod metadata;
-pub mod reranker;
 pub mod search_engine;
 pub mod search_index;
+pub mod metadata;
+pub mod reranker;
+pub mod code_chunker;
+pub mod language_processor;
+pub mod languages;
+
+pub use config::Config;
+pub use file_scanner::FileScanner;
+pub use search_engine::SearchEngine;
+pub use search_index::SearchIndex;
+pub use reranker::{Reranker, RerankerConfig, ProbeConfig, available_models, parse_reranker_model};
+pub use code_chunker::CodeChunker;
+pub use language_processor::{CodeChunk, ChunkType};
 
 #[cfg(test)]
 mod tests {

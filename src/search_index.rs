@@ -221,7 +221,7 @@ impl SearchIndex {
             for chunk in chunks {
                 // Split content into declaration and body
                 let (declaration, body) =
-                    CodeChunker::split_method_content(&chunk.content, &chunk.chunk_type);
+                    self.code_chunker.split_method_content(&chunk.content, &chunk.chunk_type);
 
                 let mut doc = TantivyDocument::new();
                 doc.add_text(self.path_field, file_path.to_string_lossy().as_ref());

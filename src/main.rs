@@ -1,16 +1,7 @@
-mod code_chunker;
-mod config;
-mod file_scanner;
-mod metadata;
-mod reranker;
-mod search_engine;
-mod search_index;
-
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use fastembed::RerankerModel;
-use reranker::{available_models, parse_reranker_model, ProbeConfig, RerankerConfig};
-use search_engine::SearchEngine;
+use probe::{ProbeConfig, SearchEngine, RerankerConfig, available_models, parse_reranker_model};
 use std::path::PathBuf;
 
 #[derive(Parser)]
