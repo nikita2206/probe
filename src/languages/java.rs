@@ -27,7 +27,6 @@ impl JavaProcessor {
         methods
     }
 
-    #[allow(clippy::only_used_in_recursion)]
     fn traverse_for_methods<'a>(cursor: &mut TreeCursor<'a>, methods: &mut Vec<Node<'a>>) {
         if cursor.node().kind() == "method_declaration" {
             methods.push(cursor.node());
