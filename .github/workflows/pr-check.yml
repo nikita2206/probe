@@ -50,7 +50,20 @@ jobs:
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Check formatting
+      id: fmt-check
       run: cargo fmt -- --check
+
+    - name: Auto-fix and push formatting issues
+      if: failure() && github.event_name == 'push'
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        cargo fmt
+        if [[ -n "$(git status --porcelain)" ]]; then
+          git add .
+          git commit -m "ci: auto-fix formatting via cargo fmt"
+          git push
+        fi
 
     - name: Run clippy
       run: cargo clippy -- -D warnings

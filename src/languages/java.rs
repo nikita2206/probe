@@ -81,7 +81,8 @@ impl JavaProcessor {
         let container_start = self.find_container_start_with_comments(container_node);
         let container_body_start = self.find_container_body_start(container_node);
 
-        if let Some(body_start) = container_body_start {
+        if let Some(body_start) = container_body_start 
+        {
             // Add everything from the container start (including JavaDoc) up to the opening brace
             let container_decl = &content[container_start..body_start];
             declaration.push_str(container_decl);

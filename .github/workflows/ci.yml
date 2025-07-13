@@ -15,6 +15,8 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GH_PAT }}
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
@@ -38,7 +40,22 @@ jobs:
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Check formatting
+      id: fmt-check
       run: cargo fmt -- --check
+
+    - name: Auto-fix and push formatting issues
+      if: failure() && github.event_name == 'push'
+      env:
+        GH_PAT: ${{ secrets.GH_PAT }}
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        cargo fmt
+        if [[ -n "$(git status --porcelain)" ]]; then
+          git add .
+          git commit -m "ci: auto-fix formatting via cargo fmt"
+          git push https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git HEAD:${{ github.ref_name }}
+        fi
 
     - name: Run clippy
       run: cargo clippy -- -D warnings
