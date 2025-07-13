@@ -25,9 +25,7 @@ impl CodeChunker {
             })
             .collect();
 
-        let chunker = Self {
-            processors,
-        };
+        let chunker = Self { processors };
 
         Ok(chunker)
     }

@@ -1,8 +1,8 @@
 use crate::language_processor::{ChunkType, LanguageProcessor};
 use crate::languages::java::JavaProcessor;
+use crate::tests::indent_string;
 use indoc::indoc;
 use pretty_assertions::assert_eq;
-use crate::tests::indent_string;
 
 #[test]
 fn test_java_class_method_chunking() {
@@ -181,10 +181,13 @@ fn test_java_multiline_declarations_chunking() {
             ) {
     "#};
 
-    let expected_first_content = indent_string(indoc! {r#"
+    let expected_first_content = indent_string(
+        indoc! {r#"
                 // method body
                 System.out.println(firstParameter);
-            }"#}, 4);
+            }"#},
+        4,
+    );
 
     let expected_second_declaration = indoc! {r#"
         /**
@@ -200,9 +203,12 @@ fn test_java_multiline_declarations_chunking() {
             ) {
     "#};
 
-    let expected_second_content = indent_string(indoc! {r#"
+    let expected_second_content = indent_string(
+        indoc! {r#"
                 return a + b;
-            }"#}, 4);
+            }"#},
+        4,
+    );
 
     assert_eq!(
         first_chunk.declaration.trim(),

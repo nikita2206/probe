@@ -40,10 +40,7 @@ pub mod utils {
 
     /// Finds the first child node of the current node in the cursor that matches one of the provided kinds.
     /// Returns the node if found, or None otherwise.
-    pub fn find_child_node<'a>(
-        cursor: &mut TreeCursor<'a>,
-        kinds: &[&str],
-    ) -> Option<Node<'a>> {
+    pub fn find_child_node<'a>(cursor: &mut TreeCursor<'a>, kinds: &[&str]) -> Option<Node<'a>> {
         if cursor.goto_first_child() {
             loop {
                 let node = cursor.node();

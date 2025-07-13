@@ -1,5 +1,5 @@
-use crate::language_processor::{ChunkType, CodeChunk, LanguageProcessor};
 use crate::language_processor::utils;
+use crate::language_processor::{ChunkType, CodeChunk, LanguageProcessor};
 use anyhow::{Context, Result};
 use tree_sitter::{Node, Parser, TreeCursor};
 
@@ -201,7 +201,9 @@ impl JavaProcessor {
         // In Java class/interface declarations, the body is typically the last child
         // Let's check children more efficiently
         let mut cursor = container_node.walk();
-        if let Some(body_node) = utils::find_child_node(&mut cursor, &["class_body", "interface_body"]) {
+        if let Some(body_node) =
+            utils::find_child_node(&mut cursor, &["class_body", "interface_body"])
+        {
             return Some(body_node.start_byte() + 1); // +1 to skip the opening brace
         }
         None
