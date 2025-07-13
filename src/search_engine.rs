@@ -50,7 +50,7 @@ impl SearchEngine {
                 };
 
             let indexed_files = index.index_files(changed_files.into_iter(), 8)?;
-            
+
             // Update metadata for indexed files
             for file in indexed_files {
                 metadata.update_file(&file)?;
@@ -81,7 +81,7 @@ impl SearchEngine {
 
         let language = self.config.get_language()?;
         let mut index = SearchIndex::new(&self.index_dir, language, self.config.stemming.enabled)?;
-        
+
         // Index the files and get back an iterator of processed files
         let indexed_files = index.index_files(files_iter, 8)?;
 

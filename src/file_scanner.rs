@@ -62,20 +62,18 @@ impl FileScanner {
             })
             .build();
 
-        walker.filter_map(move |result| {
-            match result {
-                Ok(entry) => {
-                    let path = entry.path();
-                    if path.is_file() && self.should_index_file(path) {
-                        Some(path.to_path_buf())
-                    } else {
-                        None
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error walking directory: {e}");
+        walker.filter_map(move |result| match result {
+            Ok(entry) => {
+                let path = entry.path();
+                if path.is_file() && self.should_index_file(path) {
+                    Some(path.to_path_buf())
+                } else {
                     None
                 }
+            }
+            Err(e) => {
+                eprintln!("Error walking directory: {e}");
+                None
             }
         })
     }

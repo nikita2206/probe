@@ -162,14 +162,19 @@ impl SearchIndex {
         })
     }
 
-    pub fn index_files<I>(&mut self, files: I, num_threads: usize) -> Result<impl Iterator<Item = PathBuf>>
+    pub fn index_files<I>(
+        &mut self,
+        files: I,
+        num_threads: usize,
+    ) -> Result<impl Iterator<Item = PathBuf>>
     where
         I: IntoIterator<Item = PathBuf>,
     {
         use rayon::ThreadPoolBuilder;
         use std::sync::mpsc;
 
-        let mut index_writer: IndexWriter<tantivy::TantivyDocument> = self.index.writer(50_000_000)?; // 50MB heap
+        let mut index_writer: IndexWriter<tantivy::TantivyDocument> =
+            self.index.writer(50_000_000)?; // 50MB heap
 
         let (doc_tx, doc_rx) = mpsc::channel();
         let (path_tx, path_rx) = mpsc::channel();
@@ -177,7 +182,11 @@ impl SearchIndex {
         let files_vec: Vec<_> = files.into_iter().collect();
 
         // Only build global thread pool if it doesn't exist yet
-        if ThreadPoolBuilder::new().num_threads(num_threads).build_global().is_err() {
+        if ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build_global()
+            .is_err()
+        {
             // Global thread pool already exists, which is fine
         }
 
@@ -201,7 +210,7 @@ impl SearchIndex {
                         Ok(chunker) => chunker,
                         Err(_) => return,
                     };
-                    
+
                     let content = match fs::read_to_string(&file_path) {
                         Ok(content) => content,
                         Err(_) => return, // Skip files we can't read as text
@@ -214,10 +223,10 @@ impl SearchIndex {
                         Ok(chunks) => chunks,
                         Err(_) => return,
                     };
-                    
+
                     // Send the file path to the caller
                     let _ = path_tx.send(file_path.clone());
-                    
+
                     if chunks.is_empty() {
                         let mut doc = tantivy::TantivyDocument::new();
                         doc.add_text(path_field, file_path.to_string_lossy().as_ref());
@@ -258,12 +267,10 @@ impl SearchIndex {
         }
 
         index_writer.commit()?;
-        
+
         // Return an iterator over the processed file paths
         Ok(path_rx.into_iter())
     }
-
-
 
     pub fn search(
         &mut self,

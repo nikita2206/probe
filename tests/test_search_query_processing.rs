@@ -42,7 +42,10 @@ public class DataProcessor {
     fs::write(&test_file, test_content).unwrap();
 
     // Index the file
-    index.index_files([test_file.clone()], 1).unwrap().for_each(drop);
+    index
+        .index_files([test_file.clone()], 1)
+        .unwrap()
+        .for_each(drop);
 
     // Test search with Tantivy's snippet generation
     let search_results = index.search("archive lc", 10, None).unwrap();
