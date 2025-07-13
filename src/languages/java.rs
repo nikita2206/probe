@@ -68,20 +68,44 @@ impl JavaProcessor {
         None
     }
 
+    /// Extracts the container (class or interface) with the method declaration and body.
+    ///
+    /// @example
+    ///
+    /// ```java
+    /// public class MyClass {
+    ///     public void method() {
+    ///         methodBody();
+    ///     }
+    /// }
+    /// ```
+    ///
+    /// is split into:
+    ///
+    /// ```java
+    /// public class MyClass {
+    ///     public void method() {
+    /// ```
+    /// and
+    ///
+    /// ```java
+    ///         methodBody();
+    ///     }
+    /// }
+    /// ```
     fn extract_container_with_method(
         &self,
         content: &str,
         container_node: Node,
         method_node: Node,
     ) -> (String, String) {
-        let mut declaration = String::new();
-        let mut body = String::new();
-
         // Find the container declaration start (including JavaDoc/comments before it)
         let container_start = self.find_container_start_with_comments(container_node);
         let container_body_start = self.find_container_body_start(container_node);
 
         if let Some(body_start) = container_body_start {
+            let mut declaration = String::new();
+
             // Add everything from the container start (including JavaDoc) up to the opening brace
             let container_decl = &content[container_start..body_start];
             declaration.push_str(container_decl);
@@ -91,32 +115,12 @@ impl JavaProcessor {
             let (method_declaration, method_body) =
                 self.split_method_declaration_and_body(method_node, content);
 
-            // Add method declaration to the overall declaration
-            for line in method_declaration.lines() {
-                if !line.trim().is_empty() {
-                    // Add base class indentation (4 spaces) plus preserve relative indentation
-                    let trimmed_line = line.trim_start();
-                    let original_indent = line.len() - trimmed_line.len();
-                    let method_base_indent = method_node.start_position().column;
-                    let class_base_indent = 4; // Standard indentation for class members
+            declaration.push_str(method_declaration.as_str());
 
-                    // Calculate relative indentation from the method's base indentation
-                    let relative_indent = original_indent.saturating_sub(method_base_indent);
-
-                    let total_indent = class_base_indent + relative_indent;
-                    declaration.push_str(&" ".repeat(total_indent));
-                    declaration.push_str(trimmed_line);
-                } else {
-                    declaration.push_str(line);
-                }
-                declaration.push('\n');
-            }
-
-            // Set the method body as the content
-            body = method_body;
+            return (declaration.trim_end().to_string(), method_body);
         }
 
-        (declaration.trim_end().to_string(), body)
+        (String::new(), String::new())
     }
 
     /// Splits the method declaration and body into two strings.
@@ -144,15 +148,15 @@ impl JavaProcessor {
         method_node: Node,
         content: &str,
     ) -> (String, String) {
-        let mut cursor = method_node.walk();
-        let body_node = utils::find_child_node(&mut cursor, &["block"]);
+        let body_node = utils::find_child_node(&mut method_node.walk(), &["block"]);
 
         match body_node {
             Some(body) => {
                 // Extract declaration: from method start to body start + opening brace
-                let method_start = method_node.start_byte();
+                let method_start_with_indent =
+                    method_node.start_byte() - method_node.start_position().column;
                 let body_start = body.start_byte();
-                let declaration = &content[method_start..body_start + 1]; // +1 to include the opening brace
+                let declaration = &content[method_start_with_indent..body_start + 1]; // +1 to include the opening brace
 
                 // Extract body content (remove opening brace but keep closing brace)
                 let body_content = if let Ok(body_text) = body.utf8_text(content.as_bytes()) {
