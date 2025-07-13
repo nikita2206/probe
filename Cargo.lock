@@ -2177,6 +2177,7 @@ dependencies = [
  "indoc",
  "predicates",
  "pretty_assertions",
+ "rayon",
  "serde",
  "serde_yaml",
  "tantivy",

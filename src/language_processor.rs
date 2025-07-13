@@ -2,8 +2,6 @@ use anyhow::Result;
 
 #[derive(Debug, Clone)]
 pub struct CodeChunk {
-    pub start_byte: usize,
-    pub end_byte: usize,
     pub start_line: usize,
     pub end_line: usize,
     pub chunk_type: ChunkType,
@@ -23,7 +21,7 @@ pub enum ChunkType {
     Other,
 }
 
-pub trait LanguageProcessor {
+pub trait LanguageProcessor: Send + Sync {
     /// Returns the file extensions this processor handles
     fn get_file_extensions(&self) -> &[&str];
 

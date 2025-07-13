@@ -36,7 +36,7 @@ impl FileScanner {
             let entry = result?;
             let path = entry.path();
 
-            if path.is_file() && self.should_index_file(path)? {
+            if path.is_file() && self.should_index_file(path) {
                 files.push(path.to_path_buf());
             }
         }
@@ -44,7 +44,43 @@ impl FileScanner {
         Ok(files)
     }
 
-    fn should_index_file(&self, path: &Path) -> Result<bool> {
+    /// Returns an iterator over files to be indexed, yielding each file as soon as it is discovered and filtered.
+    pub fn iter_files(&self) -> impl Iterator<Item = PathBuf> + '_ {
+        let walker = WalkBuilder::new(&self.root_dir)
+            .hidden(false)
+            .git_ignore(true)
+            .git_global(true)
+            .git_exclude(true)
+            .filter_entry(|entry| {
+                // Exclude .probe directory to avoid indexing our own files
+                if let Some(name) = entry.file_name().to_str() {
+                    if name == ".probe" && entry.path().is_dir() {
+                        return false;
+                    }
+                }
+                true
+            })
+            .build();
+
+        walker.filter_map(move |result| {
+            match result {
+                Ok(entry) => {
+                    let path = entry.path();
+                    if path.is_file() && self.should_index_file(path) {
+                        Some(path.to_path_buf())
+                    } else {
+                        None
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error walking directory: {e}");
+                    None
+                }
+            }
+        })
+    }
+
+    fn should_index_file(&self, path: &Path) -> bool {
         // Skip binary files and very large files
         if let Some(ext) = path.extension() {
             let ext = ext.to_string_lossy().to_lowercase();
@@ -75,17 +111,10 @@ impl FileScanner {
                     | "gz"
                     | "pdf"
             ) {
-                return Ok(false);
+                return false;
             }
         }
 
-        // Skip files that are too large (>1MB)
-        if let Ok(metadata) = std::fs::metadata(path) {
-            if metadata.len() > 1_000_000 {
-                return Ok(false);
-            }
-        }
-
-        Ok(true)
+        true
     }
 }

@@ -31,7 +31,8 @@ impl SearchEngine {
 
     pub fn ensure_index_updated(&self) -> Result<()> {
         let scanner = FileScanner::new(&self.root_dir);
-        let files = scanner.scan_files()?;
+        let files_iter = scanner.iter_files();
+        let files: Vec<_> = files_iter.collect::<Vec<_>>();
 
         let mut metadata = IndexMetadata::load(&self.metadata_path)?;
         let changed_files = metadata.needs_reindex(&files)?;
@@ -48,7 +49,12 @@ impl SearchEngine {
                     }
                 };
 
-            index.index_files(&changed_files)?;
+            let indexed_files = index.index_files(changed_files.into_iter(), 8)?;
+            
+            // Update metadata for indexed files
+            for file in indexed_files {
+                metadata.update_file(&file)?;
+            }
 
             // Update metadata for all files
             for file in &files {
@@ -71,19 +77,24 @@ impl SearchEngine {
         }
 
         let scanner = FileScanner::new(&self.root_dir);
-        let files = scanner.scan_files()?;
+        let files_iter = scanner.iter_files();
 
         let language = self.config.get_language()?;
         let mut index = SearchIndex::new(&self.index_dir, language, self.config.stemming.enabled)?;
-        index.index_files(&files)?;
+        
+        // Index the files and get back an iterator of processed files
+        let indexed_files = index.index_files(files_iter, 8)?;
 
+        // Update metadata for indexed files
         let mut metadata = IndexMetadata::new();
-        for file in &files {
-            metadata.update_file(file)?;
+        let mut file_count = 0;
+        for file in indexed_files {
+            metadata.update_file(&file)?;
+            file_count += 1;
         }
         metadata.save(&self.metadata_path)?;
 
-        println!("Index rebuilt. {} files indexed.", files.len());
+        println!("Index rebuilt. {file_count} files indexed.");
         Ok(())
     }
 

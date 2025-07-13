@@ -239,8 +239,6 @@ impl LanguageProcessor for JavaProcessor {
                         self.extract_container_with_method(content, container_node, method_node);
 
                     chunks.push(CodeChunk {
-                        start_byte: method_node.start_byte(),
-                        end_byte: method_node.end_byte(),
                         start_line: method_node.start_position().row,
                         end_line: method_node.end_position().row,
                         chunk_type: ChunkType::Method,
@@ -251,9 +249,6 @@ impl LanguageProcessor for JavaProcessor {
                 }
             }
         }
-
-        // Sort chunks by start position
-        chunks.sort_by_key(|c| c.start_byte);
 
         Ok(chunks)
     }

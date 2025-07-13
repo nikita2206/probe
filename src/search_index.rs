@@ -21,7 +21,6 @@ pub struct SearchIndex {
     chunk_name_field: tantivy::schema::Field,
     start_line_field: tantivy::schema::Field,
     end_line_field: tantivy::schema::Field,
-    code_chunker: CodeChunker,
 }
 
 #[derive(Debug)]
@@ -73,7 +72,7 @@ impl SearchIndex {
 
         // Add declaration and body fields
         let declaration_field = schema_builder.add_text_field("declaration", field_options.clone());
-        let body_field = schema_builder.add_text_field("body", field_options);
+        let body_field = schema_builder.add_text_field("body", field_options.clone());
 
         let filetype_field = schema_builder.add_text_field("filetype", TEXT | STORED);
         let chunk_type_field = schema_builder.add_text_field("chunk_type", TEXT | STORED);
@@ -90,8 +89,6 @@ impl SearchIndex {
             .tokenizers()
             .register("camel_case", camel_case_tokenizer);
 
-        let code_chunker = CodeChunker::new()?;
-
         Ok(Self {
             index,
             path_field,
@@ -102,7 +99,6 @@ impl SearchIndex {
             chunk_name_field,
             start_line_field,
             end_line_field,
-            code_chunker,
         })
     }
 
@@ -153,8 +149,6 @@ impl SearchIndex {
             .tokenizers()
             .register("camel_case", camel_case_tokenizer);
 
-        let code_chunker = CodeChunker::new()?;
-
         Ok(Self {
             index,
             path_field,
@@ -165,75 +159,111 @@ impl SearchIndex {
             chunk_name_field,
             start_line_field,
             end_line_field,
-            code_chunker,
         })
     }
 
-    pub fn index_files(&mut self, files: &[PathBuf]) -> Result<()> {
-        let mut index_writer: IndexWriter<TantivyDocument> = self.index.writer(50_000_000)?; // 50MB heap
+    pub fn index_files<I>(&mut self, files: I, num_threads: usize) -> Result<impl Iterator<Item = PathBuf>>
+    where
+        I: IntoIterator<Item = PathBuf>,
+    {
+        use rayon::ThreadPoolBuilder;
+        use std::sync::mpsc;
 
-        for file_path in files {
-            self.index_file(&mut index_writer, file_path)?;
+        let mut index_writer: IndexWriter<tantivy::TantivyDocument> = self.index.writer(50_000_000)?; // 50MB heap
+
+        let (doc_tx, doc_rx) = mpsc::channel();
+        let (path_tx, path_rx) = mpsc::channel();
+
+        let files_vec: Vec<_> = files.into_iter().collect();
+
+        // Only build global thread pool if it doesn't exist yet
+        if ThreadPoolBuilder::new().num_threads(num_threads).build_global().is_err() {
+            // Global thread pool already exists, which is fine
+        }
+
+        rayon::scope(|s| {
+            // Spawn worker threads to process files
+            for file_path in &files_vec {
+                let doc_tx = doc_tx.clone();
+                let path_tx = path_tx.clone();
+                let path_field = self.path_field;
+                let declaration_field = self.declaration_field;
+                let body_field = self.body_field;
+                let filetype_field = self.filetype_field;
+                let chunk_type_field = self.chunk_type_field;
+                let chunk_name_field = self.chunk_name_field;
+                let start_line_field = self.start_line_field;
+                let end_line_field = self.end_line_field;
+                let file_path = file_path.clone();
+                s.spawn(move |_| {
+                    // Create a new CodeChunker instance for this thread
+                    let mut code_chunker = match CodeChunker::new() {
+                        Ok(chunker) => chunker,
+                        Err(_) => return,
+                    };
+                    
+                    let content = match fs::read_to_string(&file_path) {
+                        Ok(content) => content,
+                        Err(_) => return, // Skip files we can't read as text
+                    };
+                    let extension = file_path
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .unwrap_or("");
+                    let chunks = match code_chunker.chunk_code_for_indexing(&file_path, &content) {
+                        Ok(chunks) => chunks,
+                        Err(_) => return,
+                    };
+                    
+                    // Send the file path to the caller
+                    let _ = path_tx.send(file_path.clone());
+                    
+                    if chunks.is_empty() {
+                        let mut doc = tantivy::TantivyDocument::new();
+                        doc.add_text(path_field, file_path.to_string_lossy().as_ref());
+                        doc.add_text(declaration_field, "");
+                        doc.add_text(body_field, &content);
+                        doc.add_text(filetype_field, extension);
+                        doc.add_text(chunk_type_field, "file");
+                        doc.add_text(chunk_name_field, "");
+                        doc.add_u64(start_line_field, 0);
+                        doc.add_u64(
+                            end_line_field,
+                            content.lines().count().saturating_sub(1) as u64,
+                        );
+                        let _ = doc_tx.send(doc);
+                    } else {
+                        for chunk in chunks {
+                            let mut doc = tantivy::TantivyDocument::new();
+                            doc.add_text(path_field, file_path.to_string_lossy().as_ref());
+                            doc.add_text(declaration_field, &chunk.declaration);
+                            doc.add_text(body_field, &chunk.content);
+                            doc.add_text(filetype_field, extension);
+                            doc.add_text(chunk_type_field, format!("{:?}", chunk.chunk_type));
+                            doc.add_text(chunk_name_field, &chunk.name);
+                            doc.add_u64(start_line_field, chunk.start_line as u64);
+                            doc.add_u64(end_line_field, chunk.end_line as u64);
+                            let _ = doc_tx.send(doc);
+                        }
+                    }
+                });
+            }
+        });
+        drop(doc_tx); // Close the channel
+        drop(path_tx); // Close the path channel
+
+        // Process all documents from the channel
+        for doc in doc_rx {
+            index_writer.add_document(doc)?;
         }
 
         index_writer.commit()?;
-        Ok(())
+        
+        // Return an iterator over the processed file paths
+        Ok(path_rx.into_iter())
     }
 
-    fn index_file(
-        &mut self,
-        writer: &mut IndexWriter<TantivyDocument>,
-        file_path: &Path,
-    ) -> Result<()> {
-        let content = match fs::read_to_string(file_path) {
-            Ok(content) => content,
-            Err(_) => return Ok(()), // Skip files we can't read as text
-        };
 
-        // Extract file extension
-        let extension = file_path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
-
-        // Get code chunks for indexing
-        let chunks = self
-            .code_chunker
-            .chunk_code_for_indexing(file_path, &content)?;
-
-        if chunks.is_empty() {
-            // If no chunks, index the whole file (for non-code files or empty files)
-            let mut doc = TantivyDocument::new();
-            doc.add_text(self.path_field, file_path.to_string_lossy().as_ref());
-            doc.add_text(self.declaration_field, ""); // No declaration for non-code files
-            doc.add_text(self.body_field, &content); // Store entire content in body field
-            doc.add_text(self.filetype_field, extension);
-            doc.add_text(self.chunk_type_field, "file");
-            doc.add_text(self.chunk_name_field, "");
-            doc.add_u64(self.start_line_field, 0);
-            doc.add_u64(
-                self.end_line_field,
-                content.lines().count().saturating_sub(1) as u64,
-            );
-            writer.add_document(doc)?;
-        } else {
-            // Index each chunk as a separate document
-            for chunk in chunks {
-                let mut doc = TantivyDocument::new();
-                doc.add_text(self.path_field, file_path.to_string_lossy().as_ref());
-                doc.add_text(self.declaration_field, &chunk.declaration);
-                doc.add_text(self.body_field, &chunk.content);
-                doc.add_text(self.filetype_field, extension);
-                doc.add_text(self.chunk_type_field, format!("{:?}", chunk.chunk_type));
-                doc.add_text(self.chunk_name_field, &chunk.name);
-                doc.add_u64(self.start_line_field, chunk.start_line as u64);
-                doc.add_u64(self.end_line_field, chunk.end_line as u64);
-                writer.add_document(doc)?;
-            }
-        }
-
-        Ok(())
-    }
 
     pub fn search(
         &mut self,

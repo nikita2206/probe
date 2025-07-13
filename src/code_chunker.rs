@@ -44,8 +44,6 @@ impl CodeChunker {
             processor.chunk_code(content)
         } else if !content.trim().is_empty() {
             Ok(vec![CodeChunk {
-                start_byte: 0,
-                end_byte: content.len(),
                 start_line: 0,
                 end_line: content.lines().count().saturating_sub(1),
                 chunk_type: ChunkType::Other,
