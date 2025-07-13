@@ -1,1 +1,1 @@
-mod java_test; 
+mod java_test;

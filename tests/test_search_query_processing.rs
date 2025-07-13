@@ -16,32 +16,29 @@ fn test_search_snippet_quality() {
 // that should NOT appear in the snippet when searching for
 // terms that appear much later in the file.
 
-use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
+package com.example.service;
 
-pub struct DataProcessor {
-    cache: HashMap<String, String>,
-}
+import java.util.HashMap;
+import java.util.Map;
 
-impl DataProcessor {
-    pub fn new() -> Self {
-        Self {
-            cache: HashMap::new(),
-        }
+public class DataProcessor {
+    private Map<String, String> cache;
+    
+    public DataProcessor() {
+        this.cache = new HashMap<>();
     }
 
     // This function contains our search term "archive lc"
-    pub fn archive_local_cache(&mut self, path: &str) -> Result<(), std::io::Error> {
-        println!("Creating archive lc at: {}", path);
-        fs::write(path, "data")?;
-        Ok(())
+    public void archiveLocalCache(String path) throws Exception {
+        System.out.println("Creating archive lc at: " + path);
+        // Write cache data to file
+        // archive lc functionality here
     }
 }
 "#;
 
     // Write the content to a temporary file
-    let test_file = temp_dir.path().join("test_file.rs");
+    let test_file = temp_dir.path().join("test_file.java");
     fs::write(&test_file, test_content).unwrap();
 
     // Index the file
@@ -71,8 +68,8 @@ impl DataProcessor {
 
     // Test with different query variations
     println!("\n--- Testing query variations ---");
-    for query in &["archive lc", "archive_local_cache", "Creating archive"] {
-        println!("Query: '{}'", query);
+    for query in &["archive lc", "archiveLocalCache", "Creating archive"] {
+        println!("Query: '{query}'");
         let results = index.search(query, 5, None).unwrap();
         println!("  Results found: {}", results.len());
         for result in results {
@@ -88,7 +85,7 @@ fn test_tantivy_query_parsing() {
     let mut index = SearchIndex::new(&index_dir, Language::English, true).unwrap();
 
     let content = "This function handles archive local cache operations";
-    let test_file = temp_dir.path().join("test.rs");
+    let test_file = temp_dir.path().join("test.java");
     fs::write(&test_file, content).unwrap();
     index.index_files(&[test_file]).unwrap();
 
@@ -99,7 +96,7 @@ fn test_tantivy_query_parsing() {
         "archive AND lc",
         "archive OR lc",
     ] {
-        println!("Testing query: {}", query);
+        println!("Testing query: {query}");
         let results = index.search(query, 5, None).unwrap();
         println!("  Results: {}", results.len());
         for result in results {

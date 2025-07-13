@@ -1,7 +1,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use fastembed::RerankerModel;
-use probe::{ProbeConfig, SearchEngine, RerankerConfig, available_models, parse_reranker_model};
+use probe::{available_models, parse_reranker_model, ProbeConfig, RerankerConfig, SearchEngine};
 use std::path::PathBuf;
 
 #[derive(Parser)]

@@ -9,8 +9,12 @@ fn test_stemming_functionality() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create a test file with plural words
-    let test_file = temp_dir.path().join("test.rs");
-    fs::write(&test_file, "fn handle_carriers() { let runners = vec![]; }").unwrap();
+    let test_file = temp_dir.path().join("test.java");
+    fs::write(
+        &test_file,
+        "public void handleCarriers() { List<String> runners = new ArrayList<>(); }",
+    )
+    .unwrap();
 
     // Create config with stemming enabled
     let config_content = r#"
@@ -37,7 +41,7 @@ stemming:
         !results.is_empty(),
         "Should find 'carriers' when searching for 'carrier'"
     );
-    assert!(results[0].path.ends_with("test.rs"));
+    assert!(results[0].path.ends_with("test.java"));
 
     // Test that singular form matches plural for 'runner'
     let results = engine
@@ -47,7 +51,7 @@ stemming:
         !results.is_empty(),
         "Should find 'runners' when searching for 'runner'"
     );
-    assert!(results[0].path.ends_with("test.rs"));
+    assert!(results[0].path.ends_with("test.java"));
 
     // Clean up temp files
     fs::remove_file(&test_file).unwrap();
@@ -59,8 +63,12 @@ fn test_stemming_disabled() {
     let temp_dir = TempDir::new().unwrap();
 
     // Create a test file with plural words
-    let test_file = temp_dir.path().join("test.rs");
-    fs::write(&test_file, "fn handle_carriers() { let runners = vec![]; }").unwrap();
+    let test_file = temp_dir.path().join("test.java");
+    fs::write(
+        &test_file,
+        "public void handleCarriers() { List<String> runners = new ArrayList<>(); }",
+    )
+    .unwrap();
 
     // Create config with stemming disabled
     let config_content = r#"
@@ -143,9 +151,8 @@ fn test_different_languages() {
             r#"
 stemming:
   enabled: true
-  language: {}
+  language: {lang_full}
 "#,
-            lang_full
         );
         let config_file = temp_dir.path().join("probe.yml");
         fs::write(&config_file, &config_content).unwrap();
@@ -153,8 +160,7 @@ stemming:
         let config = Config::load_from_dir(temp_dir.path()).unwrap();
         assert!(
             config.get_language().is_ok(),
-            "Should support language: {}",
-            lang_full
+            "Should support language: {lang_full}"
         );
 
         // Test short language code
@@ -162,17 +168,15 @@ stemming:
             r#"
 stemming:
   enabled: true
-  language: {}
+  language: {lang_short}
 "#,
-            lang_short
         );
         fs::write(&config_file, &config_content).unwrap();
 
         let config = Config::load_from_dir(temp_dir.path()).unwrap();
         assert!(
             config.get_language().is_ok(),
-            "Should support language code: {}",
-            lang_short
+            "Should support language code: {lang_short}"
         );
 
         fs::remove_file(&config_file).unwrap();

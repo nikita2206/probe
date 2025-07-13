@@ -219,14 +219,10 @@ impl SearchIndex {
         } else {
             // Index each chunk as a separate document
             for chunk in chunks {
-                // Split content into declaration and body
-                let (declaration, body) =
-                    self.code_chunker.split_method_content(&chunk.content, &chunk.chunk_type);
-
                 let mut doc = TantivyDocument::new();
                 doc.add_text(self.path_field, file_path.to_string_lossy().as_ref());
-                doc.add_text(self.declaration_field, &declaration);
-                doc.add_text(self.body_field, &body);
+                doc.add_text(self.declaration_field, &chunk.declaration);
+                doc.add_text(self.body_field, &chunk.content);
                 doc.add_text(self.filetype_field, extension);
                 doc.add_text(self.chunk_type_field, format!("{:?}", chunk.chunk_type));
                 doc.add_text(self.chunk_name_field, &chunk.name);
