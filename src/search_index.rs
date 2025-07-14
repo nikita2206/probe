@@ -371,20 +371,13 @@ impl SearchIndex {
                 // For methods and functions, show the full content with highlighting
                 if body_content.trim().is_empty() {
                     // For methods without bodies (e.g., interface methods), use declaration content
-                    self.highlight_content(
-                        declaration_content,
-                        &declaration_snippet_generator,
-                    )?
+                    self.highlight_content(declaration_content, &declaration_snippet_generator)?
                 } else {
                     // For methods with bodies, combine declaration and body for complete context
-                    let declaration_highlighted = self.highlight_content(
-                        declaration_content,
-                        &declaration_snippet_generator,
-                    )?;
-                    let body_highlighted = self.highlight_content(
-                        body_content,
-                        &snippet_generator,
-                    )?;
+                    let declaration_highlighted = self
+                        .highlight_content(declaration_content, &declaration_snippet_generator)?;
+                    let body_highlighted =
+                        self.highlight_content(body_content, &snippet_generator)?;
                     format!("{declaration_highlighted}{body_highlighted}")
                 }
             } else {
@@ -509,7 +502,10 @@ impl SearchIndex {
 
             // Add highlighted text
             result.push_str(highlight_start);
-            result.push_str(&content[range.start + highlight_fragment_offset..range.end + highlight_fragment_offset]);
+            result.push_str(
+                &content[range.start + highlight_fragment_offset
+                    ..range.end + highlight_fragment_offset],
+            );
             result.push_str(highlight_end);
 
             last_end = range.end + highlight_fragment_offset;

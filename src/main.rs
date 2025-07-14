@@ -93,14 +93,20 @@ fn main() -> Result<()> {
                         (builtin, None)
                     } else if probe_config.get_custom_model(model_name).is_some() {
                         // It's a custom model from config
-                        (RerankerModel::JINARerankerV1TurboEn, Some(model_name.clone()))
+                        (
+                            RerankerModel::JINARerankerV1TurboEn,
+                            Some(model_name.clone()),
+                        )
                     // Use default built-in as fallback
                     } else {
                         return Err(anyhow::anyhow!("Unknown reranker model '{}'. Use a built-in model (bge-reranker-base, bge-reranker-v2-m3, etc.) or add it to your config file.", model_name));
                     }
                 } else if let Some(default_custom) = &probe_config.default_reranker {
                     // Use default custom model from config
-                    (RerankerModel::JINARerankerV1TurboEn, Some(default_custom.clone()))
+                    (
+                        RerankerModel::JINARerankerV1TurboEn,
+                        Some(default_custom.clone()),
+                    )
                 } else {
                     // Fall back to built-in default
                     (RerankerModel::JINARerankerV1TurboEn, None)
@@ -143,11 +149,7 @@ fn main() -> Result<()> {
                             String::new()
                         };
 
-                        println!(
-                            "{}{}",
-                            result.path.display(),
-                            line_info
-                        );
+                        println!("{}{}", result.path.display(), line_info);
                         if !result.snippet.is_empty() {
                             println!("{}\n", result.snippet);
                         }
