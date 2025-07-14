@@ -93,17 +93,17 @@ fn main() -> Result<()> {
                         (builtin, None)
                     } else if probe_config.get_custom_model(model_name).is_some() {
                         // It's a custom model from config
-                        (RerankerModel::BGERerankerBase, Some(model_name.clone()))
+                        (RerankerModel::JINARerankerV1TurboEn, Some(model_name.clone()))
                     // Use default built-in as fallback
                     } else {
                         return Err(anyhow::anyhow!("Unknown reranker model '{}'. Use a built-in model (bge-reranker-base, bge-reranker-v2-m3, etc.) or add it to your config file.", model_name));
                     }
                 } else if let Some(default_custom) = &probe_config.default_reranker {
                     // Use default custom model from config
-                    (RerankerModel::BGERerankerBase, Some(default_custom.clone()))
+                    (RerankerModel::JINARerankerV1TurboEn, Some(default_custom.clone()))
                 } else {
                     // Fall back to built-in default
-                    (RerankerModel::BGERerankerBase, None)
+                    (RerankerModel::JINARerankerV1TurboEn, None)
                 };
 
                 // Create reranker config
@@ -126,23 +126,10 @@ fn main() -> Result<()> {
                 )?;
 
                 if results.is_empty() {
-                    println!("No results found for '{query}'");
+                    eprintln!("No results found for '{query}'");
                 } else {
-                    println!("Found {} results for '{}':\n", results.len(), query);
-                    for (i, result) in results.iter().enumerate() {
-                        // Format chunk information
-                        let chunk_info = if let (Some(chunk_type), Some(chunk_name)) =
-                            (&result.chunk_type, &result.chunk_name)
-                        {
-                            if !chunk_name.is_empty() {
-                                format!(" - {chunk_type} {chunk_name}")
-                            } else {
-                                format!(" - {chunk_type}")
-                            }
-                        } else {
-                            String::new()
-                        };
-
+                    eprintln!("Found {} results for '{}':\n", results.len(), query);
+                    for result in results.iter() {
                         // Format line information
                         let line_info = if let (Some(start), Some(end)) =
                             (result.start_line, result.end_line)
@@ -157,15 +144,12 @@ fn main() -> Result<()> {
                         };
 
                         println!(
-                            "{}. {}{}{} (score: {:.2})",
-                            i + 1,
+                            "{}{}",
                             result.path.display(),
-                            chunk_info,
-                            line_info,
-                            result.score
+                            line_info
                         );
                         if !result.snippet.is_empty() {
-                            println!("   {}\n", result.snippet);
+                            println!("{}\n", result.snippet);
                         }
                     }
                 }

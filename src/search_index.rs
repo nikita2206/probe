@@ -371,14 +371,21 @@ impl SearchIndex {
                 // For methods and functions, show the full content with highlighting
                 if body_content.trim().is_empty() {
                     // For methods without bodies (e.g., interface methods), use declaration content
-                    self.highlight_full_content(
+                    self.highlight_content(
                         declaration_content,
                         &declaration_snippet_generator,
                     )?
                 } else {
                     // For methods with bodies, combine declaration and body for complete context
-                    let combined_content = format!("{declaration_content}\n{body_content}");
-                    self.highlight_full_content(&combined_content, &snippet_generator)?
+                    let declaration_highlighted = self.highlight_content(
+                        declaration_content,
+                        &declaration_snippet_generator,
+                    )?;
+                    let body_highlighted = self.highlight_content(
+                        body_content,
+                        &snippet_generator,
+                    )?;
+                    format!("{declaration_highlighted}{body_highlighted}")
                 }
             } else {
                 // For other chunk types, use the default snippet behavior
@@ -422,9 +429,6 @@ impl SearchIndex {
         let text = snippet.fragment();
         let highlighted_ranges = snippet.highlighted();
 
-        // Debug: let's see what we get (remove this line for production)
-        // eprintln!("Debug: text='{}', ranges={:?}", text, highlighted_ranges);
-
         // If no highlighting needed, return plain text
         if highlighted_ranges.is_empty() {
             return text.to_string();
@@ -467,18 +471,15 @@ impl SearchIndex {
         result
     }
 
-    fn highlight_full_content(
+    fn highlight_content(
         &self,
         content: &str,
         snippet_generator: &SnippetGenerator,
     ) -> Result<String> {
-        // Create a temporary document with the content
-        let mut temp_doc = TantivyDocument::new();
-        temp_doc.add_text(self.body_field, content);
-
         // Generate snippet to get highlight ranges
-        let snippet = snippet_generator.snippet_from_doc(&temp_doc);
+        let snippet = snippet_generator.snippet(content);
         let highlighted_ranges = snippet.highlighted();
+        let highlight_fragment_offset = content.find(snippet.fragment()).unwrap_or(0);
 
         // If no highlighting needed, return the full content
         if highlighted_ranges.is_empty() {
@@ -502,16 +503,16 @@ impl SearchIndex {
 
         for range in ranges {
             // Add text before highlight
-            if range.start > last_end {
-                result.push_str(&content[last_end..range.start]);
+            if (range.start + highlight_fragment_offset) > last_end {
+                result.push_str(&content[last_end..range.start + highlight_fragment_offset]);
             }
 
             // Add highlighted text
             result.push_str(highlight_start);
-            result.push_str(&content[range.start..range.end]);
+            result.push_str(&content[range.start + highlight_fragment_offset..range.end + highlight_fragment_offset]);
             result.push_str(highlight_end);
 
-            last_end = range.end;
+            last_end = range.end + highlight_fragment_offset;
         }
 
         // Add remaining text after last highlight
