@@ -1,16 +1,15 @@
 use anyhow::Result;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use crate::code_chunker::CodeChunker;
-use crate::file_scanner::FileScanner;
+use probe::{CodeChunker, FileScanner, ChunkType};
 
 pub fn show_chunks_command(paths: Vec<String>) -> Result<()> {
     let mut chunker = CodeChunker::new()?;
     
     if paths.is_empty() {
         // No paths provided, scan current directory
-        show_chunks_for_directory(".", &mut chunker)?;
+        show_chunks_for_directory(Path::new("."), &mut chunker)?;
     } else {
         for path_str in paths {
             let path = Path::new(&path_str);
@@ -65,7 +64,7 @@ fn show_chunks_for_directory(dir_path: &Path, chunker: &mut CodeChunker) -> Resu
     let scanner = FileScanner::new(dir_path);
     
     for file_path in scanner.iter_files() {
-        match show_chunks_for_file(&file_path, chunker) {
+        match show_chunks_for_file(file_path.as_path(), chunker) {
             Ok(()) => {},
             Err(e) => {
                 eprintln!("Error processing file '{}': {}", file_path.display(), e);
@@ -76,14 +75,14 @@ fn show_chunks_for_directory(dir_path: &Path, chunker: &mut CodeChunker) -> Resu
     Ok(())
 }
 
-fn format_chunk_type(chunk_type: &crate::language_processor::ChunkType) -> &'static str {
+fn format_chunk_type(chunk_type: &ChunkType) -> &'static str {
     match chunk_type {
-        crate::language_processor::ChunkType::Function => "function",
-        crate::language_processor::ChunkType::Method => "method",
-        crate::language_processor::ChunkType::Class => "class",
-        crate::language_processor::ChunkType::Struct => "struct",
-        crate::language_processor::ChunkType::Interface => "interface",
-        crate::language_processor::ChunkType::Module => "module",
-        crate::language_processor::ChunkType::Other => "other",
+        ChunkType::Function => "function",
+        ChunkType::Method => "method",
+        ChunkType::Class => "class",
+        ChunkType::Struct => "struct",
+        ChunkType::Interface => "interface",
+        ChunkType::Module => "module",
+        ChunkType::Other => "other",
     }
 }
