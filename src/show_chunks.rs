@@ -31,30 +31,21 @@ fn show_chunks_for_file(file_path: &Path, chunker: &mut CodeChunker) -> Result<(
     let content = fs::read_to_string(file_path)?;
     let chunks = chunker.chunk_code_for_indexing(file_path, &content)?;
     
-    for chunk in chunks {
-        println!("{}:{}-{} [{}] {}", 
-            file_path.display(),
-            chunk.start_line + 1,
-            chunk.end_line + 1,
-            format_chunk_type(&chunk.chunk_type),
-            chunk.name
-        );
+    if !chunks.is_empty() {
+        println!("{}", file_path.display());
         
-        // Print the declaration if it exists
-        if !chunk.declaration.is_empty() {
-            println!("Declaration:");
-            for line in chunk.declaration.lines() {
-                println!("  {}", line);
+        for (i, chunk) in chunks.iter().enumerate() {
+            if !chunk.declaration.is_empty() {
+                print!("{}", chunk.declaration);
+            }
+            print!("{}", chunk.content);
+            
+            if i < chunks.len() - 1 {
+                println!("-----");
             }
         }
         
-        // Print the content with line numbers
-        println!("Content:");
-        for (i, line) in chunk.content.lines().enumerate() {
-            println!("  {:4}: {}", chunk.start_line + i + 1, line);
-        }
-        
-        println!(); // Empty line between chunks
+        println!();
     }
     
     Ok(())
