@@ -18,42 +18,68 @@ impl JavaProcessor {
         Ok(Self { parser })
     }
 
-    fn find_all_methods<'a>(&self, root_node: Node<'a>) -> Vec<Node<'a>> {
-        let mut methods = Vec::new();
-        let mut cursor = root_node.walk();
-
-        Self::traverse_for_methods(&mut cursor, &mut methods);
-
-        methods
-    }
-
-    fn traverse_for_methods<'a>(cursor: &mut TreeCursor<'a>, methods: &mut Vec<Node<'a>>) {
-        if cursor.node().kind() == "method_declaration" {
-            methods.push(cursor.node());
-        }
-
-        if cursor.goto_first_child() {
-            loop {
-                Self::traverse_for_methods(cursor, methods);
-                if !cursor.goto_next_sibling() {
-                    break;
+    fn traverse_and_collect_chunks<'a>(
+        &self,
+        node: Node<'a>,
+        content: &str,
+        stack: &mut Vec<(Node<'a>, String)>,
+        chunks: &mut Vec<CodeChunk>,
+    ) {
+        match node.kind() {
+            "class_declaration" | "interface_declaration" => {
+                let container_name = self.get_container_name(node, content);
+                stack.push((node, container_name));
+                
+                // Process children
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        self.traverse_and_collect_chunks(cursor.node(), content, stack, chunks);
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+                
+                stack.pop();
+            }
+            "method_declaration" => {
+                if let Some(method_name) = self.get_method_name(node, content) {
+                    let (declaration, body) = self.extract_method_with_context(node, content, stack);
+                    
+                    chunks.push(CodeChunk {
+                        start_line: node.start_position().row,
+                        end_line: node.end_position().row,
+                        chunk_type: ChunkType::Method,
+                        name: method_name,
+                        content: body,
+                        declaration,
+                    });
                 }
             }
-            cursor.goto_parent();
+            _ => {
+                // Process other nodes as needed
+                let mut cursor = node.walk();
+                if cursor.goto_first_child() {
+                    loop {
+                        self.traverse_and_collect_chunks(cursor.node(), content, stack, chunks);
+                        if !cursor.goto_next_sibling() {
+                            break;
+                        }
+                    }
+                }
+            }
         }
     }
 
-    fn find_enclosing_class_or_interface<'a>(&self, method_node: Node<'a>) -> Option<Node<'a>> {
-        let mut current = method_node;
-
-        while let Some(parent) = current.parent() {
-            if parent.kind() == "class_declaration" || parent.kind() == "interface_declaration" {
-                return Some(parent);
+    fn get_container_name(&self, container_node: Node, content: &str) -> String {
+        let mut cursor = container_node.walk();
+        if let Some(identifier_node) = utils::find_child_node(&mut cursor, &["identifier"]) {
+            if let Ok(name) = identifier_node.utf8_text(content.as_bytes()) {
+                return name.to_string();
             }
-            current = parent;
         }
-
-        None
+        "Anonymous".to_string()
     }
 
     fn get_method_name(&self, method_node: Node, content: &str) -> Option<String> {
@@ -68,59 +94,49 @@ impl JavaProcessor {
         None
     }
 
-    /// Extracts the container (class or interface) with the method declaration and body.
-    ///
-    /// @example
-    ///
-    /// ```java
-    /// public class MyClass {
-    ///     public void method() {
-    ///         methodBody();
-    ///     }
-    /// }
-    /// ```
-    ///
-    /// is split into:
-    ///
-    /// ```java
-    /// public class MyClass {
-    ///     public void method() {
-    /// ```
-    /// and
-    ///
-    /// ```java
-    ///         methodBody();
-    ///     }
-    /// }
-    /// ```
-    fn extract_container_with_method(
+    /// Extracts the method with its full context from nested classes/interfaces
+    fn extract_method_with_context(
         &self,
-        content: &str,
-        container_node: Node,
         method_node: Node,
+        content: &str,
+        stack: &[(Node, String)],
     ) -> (String, String) {
-        // Find the container declaration start (including JavaDoc/comments before it)
-        let container_start = self.find_container_start_with_comments(container_node);
-        let container_body_start = self.find_container_body_start(container_node);
-
-        if let Some(body_start) = container_body_start {
-            let mut declaration = String::new();
-
-            // Add everything from the container start (including JavaDoc) up to the opening brace
-            let container_decl = &content[container_start..body_start];
-            declaration.push_str(container_decl);
-            declaration.push('\n');
-
-            // Split method into declaration and body using AST
-            let (method_declaration, method_body) =
-                self.split_method_declaration_and_body(method_node, content);
-
-            declaration.push_str(method_declaration.as_str());
-
-            return (declaration.trim_end().to_string(), method_body);
+        let mut declaration = String::new();
+        
+        // Build the full context from the stack
+        for (i, (container_node, container_name)) in stack.iter().enumerate() {
+            if i > 0 {
+                declaration.push('\n');
+            }
+            
+            // Add container declaration with proper indentation
+            let container_start = self.find_container_start_with_comments(*container_node);
+            let container_body_start = self.find_container_body_start(*container_node);
+            
+            if let Some(body_start) = container_body_start {
+                let container_decl = &content[container_start..body_start + 1];
+                let indent = "    ".repeat(i);
+                let indented_decl = container_decl
+                    .lines()
+                    .map(|line| format!("{}{}", indent, line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                declaration.push_str(&indented_decl);
+            }
         }
-
-        (String::new(), String::new())
+        
+        // Add the method declaration
+        let (method_declaration, method_body) = self.split_method_declaration_and_body(method_node, content);
+        let method_indent = "    ".repeat(stack.len());
+        let indented_method_decl = method_declaration
+            .lines()
+            .map(|line| format!("{}{}", method_indent, line))
+            .collect::<Vec<_>>()
+            .join("\n");
+        
+        declaration.push_str(&indented_method_decl);
+        
+        (declaration.trim_end().to_string(), method_body)
     }
 
     /// Splits the method declaration and body into two strings.
@@ -227,28 +243,9 @@ impl LanguageProcessor for JavaProcessor {
         let root_node = tree.root_node();
 
         let mut chunks = Vec::new();
+        let mut stack = Vec::new();
 
-        // Find all method declarations
-        let methods = self.find_all_methods(root_node);
-
-        for method_node in methods {
-            if let Some(method_name) = self.get_method_name(method_node, content) {
-                // Find the enclosing class or interface
-                if let Some(container_node) = self.find_enclosing_class_or_interface(method_node) {
-                    let (declaration, body) =
-                        self.extract_container_with_method(content, container_node, method_node);
-
-                    chunks.push(CodeChunk {
-                        start_line: method_node.start_position().row,
-                        end_line: method_node.end_position().row,
-                        chunk_type: ChunkType::Method,
-                        name: method_name,
-                        content: body,
-                        declaration,
-                    });
-                }
-            }
-        }
+        self.traverse_and_collect_chunks(root_node, content, &mut stack, &mut chunks);
 
         Ok(chunks)
     }
