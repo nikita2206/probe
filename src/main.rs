@@ -4,6 +4,8 @@ use fastembed::RerankerModel;
 use probe::{available_models, parse_reranker_model, ProbeConfig, RerankerConfig, SearchEngine};
 use std::path::PathBuf;
 
+mod show_chunks;
+
 #[derive(Parser)]
 #[command(name = "probe")]
 #[command(about = "Fast code search with persistent indexing")]
@@ -59,6 +61,11 @@ enum Commands {
     Stats,
     #[command(about = "List available reranking models")]
     ListModels,
+    #[command(about = "Show how files are chunked for indexing")]
+    ShowChunks {
+        #[arg(help = "Files or directories to show chunks for (default: current directory)")]
+        paths: Vec<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -80,6 +87,9 @@ fn main() -> Result<()> {
             for (name, description) in available_models() {
                 println!("  {name}: {description}");
             }
+        }
+        Some(Commands::ShowChunks { paths }) => {
+            show_chunks::show_chunks_command(paths)?;
         }
         None => {
             if let Some(query) = cli.query {
