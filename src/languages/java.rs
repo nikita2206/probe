@@ -29,7 +29,7 @@ impl JavaProcessor {
             "class_declaration" | "interface_declaration" => {
                 let container_name = self.get_container_name(node, content);
                 stack.push((node, container_name));
-                
+
                 // Process children
                 let mut cursor = node.walk();
                 if cursor.goto_first_child() {
@@ -40,13 +40,14 @@ impl JavaProcessor {
                         }
                     }
                 }
-                
+
                 stack.pop();
             }
             "method_declaration" => {
                 if let Some(method_name) = self.get_method_name(node, content) {
-                    let (declaration, body) = self.extract_method_with_context(node, content, stack);
-                    
+                    let (declaration, body) =
+                        self.extract_method_with_context(node, content, stack);
+
                     chunks.push(CodeChunk {
                         start_line: node.start_position().row,
                         end_line: node.end_position().row,
@@ -102,17 +103,17 @@ impl JavaProcessor {
         stack: &[(Node, String)],
     ) -> (String, String) {
         let mut declaration = String::new();
-        
+
         // Build the full context from the stack
         for (i, (container_node, container_name)) in stack.iter().enumerate() {
             if i > 0 {
                 declaration.push('\n');
             }
-            
+
             // Add container declaration with proper indentation
             let container_start = self.find_container_start_with_comments(*container_node);
             let container_body_start = self.find_container_body_start(*container_node);
-            
+
             if let Some(body_start) = container_body_start {
                 let container_decl = &content[container_start..body_start + 1];
                 let indent = "    ".repeat(i);
@@ -124,18 +125,18 @@ impl JavaProcessor {
                 declaration.push_str(&indented_decl);
             }
         }
-        
+
         // Add the method declaration
-        let (method_declaration, method_body) = self.split_method_declaration_and_body(method_node, content);
-        let method_indent = "    ".repeat(stack.len());
-        let indented_method_decl = method_declaration
-            .lines()
-            .map(|line| format!("{}{}", method_indent, line))
-            .collect::<Vec<_>>()
-            .join("\n");
-        
-        declaration.push_str(&indented_method_decl);
-        
+        let (method_declaration, method_body) =
+            self.split_method_declaration_and_body(method_node, content);
+        // Use the original indentation from the source code
+        let method_declaration = method_declaration;
+
+        if !declaration.is_empty() {
+            declaration.push('\n');
+        }
+        declaration.push_str(&method_declaration);
+
         (declaration.trim_end().to_string(), method_body)
     }
 
