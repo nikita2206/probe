@@ -3,20 +3,33 @@ name: CI
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  approve-pr:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name != github.repository
+    
+    steps:
+    - name: Require approval for external PRs
+      run: |
+        echo "This PR is from a fork and requires manual approval to run CI."
+        echo "A maintainer must review and approve this PR before CI will run."
+        exit 1
+
   test:
     runs-on: ubuntu-latest
+    if: github.event_name == 'push' || (github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.full_name == github.repository)
     
     steps:
     - uses: actions/checkout@v4
       with:
         token: ${{ secrets.GH_PAT }}
+        ref: ${{ github.event_name == 'pull_request_target' && github.event.pull_request.head.sha || github.sha }}
     
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
