@@ -39,10 +39,10 @@ impl JavaProcessor {
     }
 
     /// Recursively traverses the AST to collect code chunks.
-    /// 
+    ///
     /// The stack maintains the current nesting context of classes/interfaces
     /// to provide proper context for method declarations.
-    /// 
+    ///
     /// # Arguments
     /// * `stack` - Stack of (container_node, container_name) for nesting context
     fn collect_chunks_recursively<'a>(
@@ -124,7 +124,8 @@ impl JavaProcessor {
             }
 
             // Add container declaration with proper indentation
-            let (container_start, start_node) = self.find_container_start_with_comments(*container_node);
+            let (container_start, start_node) =
+                self.find_container_start_with_comments(*container_node);
             let container_body_start = self.find_container_body_start(*container_node);
 
             if let Some(body_start) = container_body_start {
@@ -207,7 +208,10 @@ impl JavaProcessor {
 
     /// Finds the starting node and byte position of the class/interface declaration, including comments like JavaDocs.
     /// Returns (start_byte, start_node) where start_node is the earliest node (comment or declaration).
-    fn find_container_start_with_comments<'a>(&self, container_node: Node<'a>) -> (usize, Node<'a>) {
+    fn find_container_start_with_comments<'a>(
+        &self,
+        container_node: Node<'a>,
+    ) -> (usize, Node<'a>) {
         let mut current = container_node;
         let mut start_byte = container_node.start_byte();
         let mut start_node = container_node;
@@ -245,14 +249,13 @@ impl JavaProcessor {
     fn get_line_start_index(&self, node: Node) -> usize {
         let start_byte = node.start_byte();
         let start_column = node.start_position().column;
-        
+
         if start_byte >= start_column {
             start_byte - start_column
         } else {
             start_byte
         }
     }
-
 }
 
 impl LanguageProcessor for JavaProcessor {
