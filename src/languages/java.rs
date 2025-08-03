@@ -53,7 +53,7 @@ impl JavaProcessor {
         chunks: &mut Vec<CodeChunk>,
     ) {
         match node.kind() {
-            "class_declaration" | "interface_declaration" => {
+            "class_declaration" | "interface_declaration" | "record_declaration" => {
                 let container_name = self.get_container_name(node, content);
                 stack.push((node, container_name));
 
@@ -234,7 +234,7 @@ impl JavaProcessor {
         // Let's check children more efficiently
         let mut cursor = container_node.walk();
         if let Some(body_node) =
-            utils::find_child_node(&mut cursor, &["class_body", "interface_body"])
+            utils::find_child_node(&mut cursor, &["class_body", "interface_body", "record_body"])
         {
             return Some(body_node.start_byte() + 1); // +1 to skip the opening brace
         }
