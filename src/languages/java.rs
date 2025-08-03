@@ -1,7 +1,7 @@
 use crate::language_processor::utils;
 use crate::language_processor::{ChunkType, CodeChunk, LanguageProcessor};
 use anyhow::{Context, Result};
-use tree_sitter::{Node, Parser, TreeCursor};
+use tree_sitter::{Node, Parser};
 
 pub struct JavaProcessor {
     parser: Parser,
@@ -18,11 +18,34 @@ impl JavaProcessor {
         Ok(Self { parser })
     }
 
-    fn traverse_and_collect_chunks<'a>(
+    /// Helper method to traverse all children of a node recursively.
+    /// This avoids code duplication in the main traversal method.
+    fn traverse_children<'a>(
         &self,
         node: Node<'a>,
         content: &str,
         stack: &mut Vec<(Node<'a>, String)>,
+        chunks: &mut Vec<CodeChunk>,
+    ) {
+        let mut cursor = node.walk();
+        if cursor.goto_first_child() {
+            loop {
+                self.collect_chunks_recursively(cursor.node(), content, stack, chunks);
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+    }
+
+    /// Recursively traverses the AST to collect code chunks.
+    /// The stack maintains the current nesting context of classes/interfaces
+    /// to provide proper context for method declarations.
+    fn collect_chunks_recursively<'a>(
+        &self,
+        node: Node<'a>,
+        content: &str,
+        stack: &mut Vec<(Node<'a>, String)>, // Stack of (container_node, container_name) for nesting context
         chunks: &mut Vec<CodeChunk>,
     ) {
         match node.kind() {
@@ -31,44 +54,30 @@ impl JavaProcessor {
                 stack.push((node, container_name));
 
                 // Process children
-                let mut cursor = node.walk();
-                if cursor.goto_first_child() {
-                    loop {
-                        self.traverse_and_collect_chunks(cursor.node(), content, stack, chunks);
-                        if !cursor.goto_next_sibling() {
-                            break;
-                        }
-                    }
-                }
+                self.traverse_children(node, content, stack, chunks);
 
                 stack.pop();
             }
             "method_declaration" => {
-                if let Some(method_name) = self.get_method_name(node, content) {
-                    let (declaration, body) =
-                        self.extract_method_with_context(node, content, stack);
+                // Extract method name, fallback to a default if parsing fails
+                let method_name = self.get_method_name(node, content)
+                    .unwrap_or_else(|| format!("method_at_line_{}", node.start_position().row + 1));
+                
+                let (declaration, body) =
+                    self.extract_method_with_context(node, content, stack);
 
-                    chunks.push(CodeChunk {
-                        start_line: node.start_position().row,
-                        end_line: node.end_position().row,
-                        chunk_type: ChunkType::Method,
-                        name: method_name,
-                        content: body,
-                        declaration,
-                    });
-                }
+                chunks.push(CodeChunk {
+                    start_line: node.start_position().row,
+                    end_line: node.end_position().row,
+                    chunk_type: ChunkType::Method,
+                    name: method_name,
+                    content: body,
+                    declaration,
+                });
             }
             _ => {
                 // Process other nodes as needed
-                let mut cursor = node.walk();
-                if cursor.goto_first_child() {
-                    loop {
-                        self.traverse_and_collect_chunks(cursor.node(), content, stack, chunks);
-                        if !cursor.goto_next_sibling() {
-                            break;
-                        }
-                    }
-                }
+                self.traverse_children(node, content, stack, chunks);
             }
         }
     }
@@ -105,7 +114,7 @@ impl JavaProcessor {
         let mut declaration = String::new();
 
         // Build the full context from the stack
-        for (i, (container_node, container_name)) in stack.iter().enumerate() {
+        for (i, (container_node, _container_name)) in stack.iter().enumerate() {
             if i > 0 {
                 declaration.push('\n');
             }
@@ -116,13 +125,15 @@ impl JavaProcessor {
 
             if let Some(body_start) = container_body_start {
                 let container_decl = &content[container_start..body_start + 1];
-                let indent = "    ".repeat(i);
-                let indented_decl = container_decl
-                    .lines()
-                    .map(|line| format!("{}{}", indent, line))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                declaration.push_str(&indented_decl);
+                // Use the original indentation from the source - only adjust if this is a nested container
+                if i == 0 {
+                    // First container - use original indentation as-is
+                    declaration.push_str(container_decl);
+                } else {
+                    // Nested container - add base indentation to the whole chunk
+                    let base_indent = "    ".repeat(i);
+                    declaration.push_str(&format!("{}{}", base_indent, container_decl));
+                }
             }
         }
 
@@ -246,7 +257,7 @@ impl LanguageProcessor for JavaProcessor {
         let mut chunks = Vec::new();
         let mut stack = Vec::new();
 
-        self.traverse_and_collect_chunks(root_node, content, &mut stack, &mut chunks);
+        self.collect_chunks_recursively(root_node, content, &mut stack, &mut chunks);
 
         Ok(chunks)
     }
