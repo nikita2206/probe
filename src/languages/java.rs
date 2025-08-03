@@ -134,19 +134,10 @@ impl JavaProcessor {
                     // First container - use original indentation as-is
                     declaration.push_str(container_decl);
                 } else {
-                    // Nested container - preserve relative indentation from source
-                    let _start_node_column = start_node.start_position().column;
-                    let source_indentation = self.extract_indentation_from_source(content, start_node);
-                    
-                    // Calculate additional indentation needed for nesting level
-                    let additional_indent = self.calculate_nesting_indent(content, i);
-                    
-                    let adjusted_decl = self.adjust_container_indentation(
-                        container_decl, 
-                        &source_indentation, 
-                        &additional_indent
-                    );
-                    declaration.push_str(&adjusted_decl);
+                    // Nested container - use node's column position for proper indentation
+                    let start_node_column = start_node.start_position().column;
+                    let indent = " ".repeat(start_node_column);
+                    declaration.push_str(&format!("{}{}", indent, container_decl.trim_start()));
                 }
             }
         }
@@ -258,89 +249,6 @@ impl JavaProcessor {
         None
     }
 
-    /// Extracts the actual indentation string from the source code at the given node's line
-    fn extract_indentation_from_source(&self, content: &str, node: Node) -> String {
-        let start_row = node.start_position().row;
-        let lines: Vec<&str> = content.lines().collect();
-        
-        if start_row < lines.len() {
-            let line = lines[start_row];
-            // Extract leading whitespace
-            let indent_end = line.len() - line.trim_start().len();
-            line[..indent_end].to_string()
-        } else {
-            String::new()
-        }
-    }
-
-    /// Calculates the additional indentation needed based on nesting level
-    /// This analyzes the source code's indentation pattern instead of assuming 4 spaces
-    fn calculate_nesting_indent(&self, content: &str, nesting_level: usize) -> String {
-        let indent_unit = self.detect_indentation_unit(content);
-        indent_unit.repeat(nesting_level)
-    }
-
-    /// Detects the indentation unit used in the source code (spaces or tabs)
-    fn detect_indentation_unit(&self, content: &str) -> String {
-        let lines: Vec<&str> = content.lines().collect();
-        let mut space_indents = Vec::new();
-        let mut has_tabs = false;
-
-        for line in lines.iter().take(100) { // Sample first 100 lines
-            if line.trim().is_empty() {
-                continue;
-            }
-            
-            let trimmed = line.trim_start();
-            let indent_len = line.len() - trimmed.len();
-            
-            if indent_len > 0 {
-                if line.starts_with('\t') {
-                    has_tabs = true;
-                    break;
-                } else if line.starts_with(' ') {
-                    space_indents.push(indent_len);
-                }
-            }
-        }
-
-        if has_tabs {
-            "\t".to_string()
-        } else if !space_indents.is_empty() {
-            // Find the most common indentation level (likely the base unit)
-            space_indents.sort_unstable();
-            let mut min_indent = space_indents[0];
-            
-            // Find GCD-like pattern for indentation
-            for &indent in &space_indents[1..] {
-                if indent % min_indent != 0 {
-                    // Find a smaller common unit
-                    for i in (1..=min_indent).rev() {
-                        if indent % i == 0 && min_indent % i == 0 {
-                            min_indent = i;
-                            break;
-                        }
-                    }
-                }
-            }
-            
-            " ".repeat(std::cmp::max(min_indent, 2)) // At least 2 spaces
-        } else {
-            "    ".to_string() // Default to 4 spaces
-        }
-    }
-
-    /// Adjusts the indentation of a container declaration
-    fn adjust_container_indentation(
-        &self,
-        container_decl: &str,
-        _source_indentation: &str,
-        additional_indent: &str,
-    ) -> String {
-        // Simply prepend the additional indentation to the container declaration
-        // This preserves the original structure while adding nesting indentation
-        format!("{}{}", additional_indent, container_decl)
-    }
 }
 
 impl LanguageProcessor for JavaProcessor {
