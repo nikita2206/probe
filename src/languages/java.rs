@@ -130,15 +130,10 @@ impl JavaProcessor {
             if let Some(body_start) = container_body_start {
                 let container_decl = &content[container_start..body_start + 1];
                 
-                if i == 0 {
-                    // First container - use original indentation as-is
-                    declaration.push_str(container_decl);
-                } else {
-                    // Nested container - use node's column position for proper indentation
-                    let start_node_column = start_node.start_position().column;
-                    let indent = " ".repeat(start_node_column);
-                    declaration.push_str(&format!("{}{}", indent, container_decl.trim_start()));
-                }
+                // Use node's column position for proper indentation
+                let start_node_column = start_node.start_position().column;
+                let indent = " ".repeat(start_node_column);
+                declaration.push_str(&format!("{}{}", indent, container_decl));
             }
         }
 
