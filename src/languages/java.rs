@@ -130,9 +130,8 @@ impl JavaProcessor {
             if let Some(body_start) = container_body_start {
                 let container_decl = &content[container_start..body_start + 1];
                 
-                // Use node's column position for proper indentation
-                let start_node_column = start_node.start_position().column;
-                let indent = " ".repeat(start_node_column);
+                // Extract the actual indentation from the source line
+                let indent = self.extract_line_indentation(content, start_node);
                 declaration.push_str(&format!("{}{}", indent, container_decl));
             }
         }
@@ -242,6 +241,26 @@ impl JavaProcessor {
             return Some(body_node.start_byte() + 1); // +1 to skip the opening brace
         }
         None
+    }
+
+    /// Extracts the indentation string from the line where the node starts
+    /// This preserves tabs and spaces exactly as they appear in the source
+    fn extract_line_indentation(&self, content: &str, node: Node) -> String {
+        let start_row = node.start_position().row;
+        let start_column = node.start_position().column;
+        let lines: Vec<&str> = content.lines().collect();
+        
+        if start_row < lines.len() {
+            let line = lines[start_row];
+            if start_column <= line.len() {
+                // Extract the substring from start of line to where the node starts
+                line[..start_column].to_string()
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        }
     }
 
 }
