@@ -67,7 +67,7 @@ fn test_basic_search() {
         .assert()
         .success()
         .stdout(predicate::str::contains("main.rs"))
-        .stdout(predicate::str::contains("Found"));
+        .stderr(predicate::str::contains("Found"));
 }
 
 #[test]
@@ -194,7 +194,7 @@ fn test_no_results_found() {
         .args(["-d", project_path.to_str().unwrap(), "nonexistent_term_xyz"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("No results found"));
+        .stderr(predicate::str::contains("No results found"));
 }
 
 #[test]

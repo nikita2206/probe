@@ -124,7 +124,7 @@ impl JavaProcessor {
             }
 
             // Add container declaration with proper indentation
-            let (container_start, start_node) =
+            let (_container_start, start_node) =
                 self.find_container_start_with_comments(*container_node);
             let container_body_start = self.find_container_body_start(*container_node);
 
@@ -140,9 +140,6 @@ impl JavaProcessor {
         let (method_declaration, method_body) =
             self.split_method_declaration_and_body(method_node, content);
 
-        if !declaration.is_empty() {
-            declaration.push('\n');
-        }
         declaration.push_str(&method_declaration);
 
         (declaration.trim_end().to_string(), method_body)

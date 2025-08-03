@@ -19,7 +19,7 @@ pub fn show_chunks_command(paths: Vec<String>) -> Result<()> {
             } else if path.is_dir() {
                 show_chunks_for_directory(path, &mut chunker)?;
             } else {
-                eprintln!("Warning: '{}' is not a valid file or directory", path_str);
+                eprintln!("Warning: '{path_str}' is not a valid file or directory");
             }
         }
     }
@@ -41,7 +41,7 @@ fn show_chunks_for_file(file_path: &Path, chunker: &mut CodeChunker) -> Result<(
             print!("{}", chunk.content);
 
             if i < chunks.len() - 1 {
-                println!("");
+                println!();
                 println!("-----");
             }
         }

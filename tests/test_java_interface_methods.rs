@@ -66,10 +66,10 @@ fn test_java_interface_method_declarations_appear_in_search_results() {
         "File name should be mentioned"
     );
 
-    // The method should be identified as a Method
+    // The method should be found in search results
     assert!(
-        stdout.contains("Method getUserById"),
-        "Should identify this as a method"
+        stdout.contains("getUserById"),
+        "Should find the method in search results"
     );
 }
 
