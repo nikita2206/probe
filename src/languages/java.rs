@@ -138,8 +138,6 @@ impl JavaProcessor {
         // Add the method declaration
         let (method_declaration, method_body) =
             self.split_method_declaration_and_body(method_node, content);
-        // Use the original indentation from the source code
-        let method_declaration = method_declaration;
 
         if !declaration.is_empty() {
             declaration.push('\n');
