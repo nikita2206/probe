@@ -246,18 +246,14 @@ impl JavaProcessor {
     /// Extracts the indentation string from the line where the node starts
     /// This preserves tabs and spaces exactly as they appear in the source
     fn extract_line_indentation(&self, content: &str, node: Node) -> String {
-        let start_row = node.start_position().row;
+        let start_byte = node.start_byte();
         let start_column = node.start_position().column;
-        let lines: Vec<&str> = content.lines().collect();
         
-        if start_row < lines.len() {
-            let line = lines[start_row];
-            if start_column <= line.len() {
-                // Extract the substring from start of line to where the node starts
-                line[..start_column].to_string()
-            } else {
-                String::new()
-            }
+        if start_byte >= start_column && start_column <= content.len() {
+            // Calculate the byte position of the line start
+            let line_start_byte = start_byte - start_column;
+            // Extract the substring from line start to where the node starts
+            content[line_start_byte..start_byte].to_string()
         } else {
             String::new()
         }
