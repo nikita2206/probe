@@ -130,7 +130,10 @@ fn test_java_record_instance_methods_work_correctly() {
         stdout.contains("public boolean isAdult()"),
         "Should show instance method declaration"
     );
-    assert!(stdout.contains("return age >= 18;"), "Should show method body");
+    assert!(
+        stdout.contains("return age >= 18;"),
+        "Should show method body"
+    );
 }
 
 #[test]
