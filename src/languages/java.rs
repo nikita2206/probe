@@ -128,11 +128,10 @@ impl JavaProcessor {
             let container_body_start = self.find_container_body_start(*container_node);
 
             if let Some(body_start) = container_body_start {
-                let container_decl = &content[container_start..body_start + 1];
-                
-                // Extract the actual indentation from the source line
-                let indent = self.extract_line_indentation(content, start_node);
-                declaration.push_str(&format!("{}{}", indent, container_decl));
+                // Get line start index to include indentation in single substring
+                let line_start_index = self.get_line_start_index(start_node);
+                let container_with_indent = &content[line_start_index..body_start + 1];
+                declaration.push_str(container_with_indent);
             }
         }
 
@@ -243,19 +242,16 @@ impl JavaProcessor {
         None
     }
 
-    /// Extracts the indentation string from the line where the node starts
-    /// This preserves tabs and spaces exactly as they appear in the source
-    fn extract_line_indentation(&self, content: &str, node: Node) -> String {
+    /// Returns the byte index of the line start for the given node
+    /// This allows extracting both indentation and content in a single substring operation
+    fn get_line_start_index(&self, node: Node) -> usize {
         let start_byte = node.start_byte();
         let start_column = node.start_position().column;
         
-        if start_byte >= start_column && start_column <= content.len() {
-            // Calculate the byte position of the line start
-            let line_start_byte = start_byte - start_column;
-            // Extract the substring from line start to where the node starts
-            content[line_start_byte..start_byte].to_string()
+        if start_byte >= start_column {
+            start_byte - start_column
         } else {
-            String::new()
+            start_byte
         }
     }
 
