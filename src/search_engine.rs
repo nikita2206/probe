@@ -123,7 +123,7 @@ impl SearchEngine {
         // Apply reranking if enabled and we have enough results
         if reranker_config.enabled && results.len() >= 2 {
             // Initialize reranker
-            let reranker = Reranker::new(reranker_config)?;
+            let mut reranker = Reranker::new(reranker_config)?;
 
             // Convert SearchResults to RerankDocuments
             let rerank_docs: Vec<RerankDocument> = results

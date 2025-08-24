@@ -6,7 +6,6 @@ use fastembed::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 
 /// Custom reranker model configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,7 +201,7 @@ fn create_user_defined_model(
 
 /// Reranker wrapper that manages the fastembed reranking model
 pub struct Reranker {
-    model: Arc<TextRerank>,
+    model: TextRerank,
     config: RerankerConfig,
 }
 
@@ -212,7 +211,7 @@ impl Reranker {
         if !config.enabled {
             // Return a dummy reranker if disabled
             return Ok(Self {
-                model: Arc::new(Self::create_dummy_model()?),
+                model: Self::create_dummy_model()?,
                 config,
             });
         }
@@ -243,10 +242,7 @@ impl Reranker {
             .context("Failed to initialize reranking model")?
         };
 
-        Ok(Self {
-            model: Arc::new(model),
-            config,
-        })
+        Ok(Self { model, config })
     }
 
     /// Create a custom model from HuggingFace using configuration
@@ -295,7 +291,7 @@ impl Reranker {
 
     /// Rerank documents based on query relevance
     pub fn rerank(
-        &self,
+        &mut self,
         query: &str,
         documents: Vec<RerankDocument>,
         limit: Option<usize>,
@@ -391,7 +387,7 @@ mod tests {
             ..Default::default()
         };
 
-        let reranker = Reranker::new(config).unwrap();
+        let mut reranker = Reranker::new(config).unwrap();
 
         let docs = vec![RerankDocument {
             content: "Test document".to_string(),
