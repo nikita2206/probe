@@ -1,10 +1,11 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use fastembed::RerankerModel;
-use probe::{available_models, parse_reranker_model, ProbeConfig, RerankerConfig, SearchEngine};
+use probe::{available_models, debug_trace, parse_reranker_model, set_debug_enabled, ProbeConfig, RerankerConfig, SearchEngine};
 use std::path::PathBuf;
 
 mod show_chunks;
+
 
 #[derive(Parser)]
 #[command(name = "probe")]
@@ -49,6 +50,9 @@ struct Cli {
     )]
     config_path: Option<PathBuf>,
 
+    #[arg(long, help = "Enable verbose debug output")]
+    trace: bool,
+
     #[arg(help = "Search query")]
     query: Option<String>,
 }
@@ -56,7 +60,10 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     #[command(about = "Rebuild search index")]
-    Rebuild,
+    Rebuild {
+        #[arg(help = "Specific files to reindex (optional - if not provided, rebuilds entire index)")]
+        files: Vec<String>,
+    },
     #[command(about = "Show index statistics")]
     Stats,
     #[command(about = "List available reranking models")]
@@ -70,13 +77,22 @@ enum Commands {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    
+    // Enable debug logging if trace flag is set
+    set_debug_enabled(cli.trace);
+    
+    debug_trace!("Debug tracing enabled");
 
     let root_dir = cli.directory.unwrap_or_else(|| ".".to_string());
 
     match cli.command {
-        Some(Commands::Rebuild) => {
+        Some(Commands::Rebuild { files }) => {
             let engine = SearchEngine::new(&root_dir)?;
-            engine.rebuild_index()?;
+            if files.is_empty() {
+                engine.rebuild_index()?;
+            } else {
+                engine.rebuild_index_for_files(&files)?;
+            }
         }
         Some(Commands::Stats) => {
             let engine = SearchEngine::new(&root_dir)?;

@@ -34,16 +34,36 @@ pub trait LanguageProcessor: Send + Sync {
 
 /// Utility functions shared across language processors
 pub mod utils {
+    use crate::debug_trace;
     use tree_sitter::{Node, TreeCursor};
 
     /// Finds the first child node of the current node in the cursor that matches one of the provided kinds.
     /// Returns the node if found, or None otherwise.
     pub fn find_child_node<'a>(cursor: &mut TreeCursor<'a>, kinds: &[&str]) -> Option<Node<'a>> {
+        let parent_node = cursor.node();
+        debug_trace!(
+            "Searching for child nodes of type [{}] in {} node at byte {}",
+            kinds.join(", "),
+            parent_node.kind(),
+            parent_node.start_byte()
+        );
+        
         if cursor.goto_first_child() {
+            let mut child_count = 0;
             loop {
+                child_count += 1;
                 let node = cursor.node();
+                debug_trace!(
+                    "Checking child #{}: {} at byte {}:{}",
+                    child_count,
+                    node.kind(),
+                    node.start_byte(),
+                    node.end_byte()
+                );
+                
                 if kinds.contains(&node.kind()) {
                     let found = node;
+                    debug_trace!("Found matching child: {} at byte {}", found.kind(), found.start_byte());
                     cursor.goto_parent(); // Restore cursor position
                     return Some(found);
                 }
@@ -51,7 +71,10 @@ pub mod utils {
                     break;
                 }
             }
+            debug_trace!("No matching children found after checking {} nodes", child_count);
             cursor.goto_parent(); // Restore cursor position
+        } else {
+            debug_trace!("No children to search in {} node", parent_node.kind());
         }
         None
     }

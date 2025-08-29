@@ -16,6 +16,27 @@ pub use reranker::{available_models, parse_reranker_model, ProbeConfig, Reranker
 pub use search_engine::SearchEngine;
 pub use search_index::SearchIndex;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static DEBUG_ENABLED: AtomicBool = AtomicBool::new(false);
+
+pub fn is_debug_enabled() -> bool {
+    DEBUG_ENABLED.load(Ordering::Relaxed)
+}
+
+pub fn set_debug_enabled(enabled: bool) {
+    DEBUG_ENABLED.store(enabled, Ordering::Relaxed);
+}
+
+#[macro_export]
+macro_rules! debug_trace {
+    ($($arg:tt)*) => {
+        if $crate::is_debug_enabled() {
+            eprintln!("[TRACE] {}", format!($($arg)*));
+        }
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

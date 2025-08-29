@@ -61,6 +61,10 @@ cargo build --verbose
 cargo test --verbose
 ```
 
+### Debugging
+
+Add logging statements to debug the parsing, during development time, and use --trace flag to get the logs. When debugging parser or trying to make sure that the issue is not in the parser, use `probe --trace reindex [filename]` command to debug parsing of a specific file. 
+
 ### Running the Tool
 ```bash
 # Basic search in current directory
