@@ -115,4 +115,35 @@ impl FileScanner {
 
         true
     }
+    
+    /// Check if a specific file should be included based on gitignore and other exclusion rules
+    pub fn should_include_file(&self, file_path: &Path) -> bool {
+        // Use the ignore library to check if this file would be excluded
+        let walker = WalkBuilder::new(&self.root_dir)
+            .hidden(false)
+            .git_ignore(true)
+            .git_global(true)
+            .git_exclude(true)
+            .filter_entry(|entry| {
+                // Exclude .probe directory
+                if let Some(name) = entry.file_name().to_str() {
+                    if name == ".probe" && entry.path().is_dir() {
+                        return false;
+                    }
+                }
+                true
+            })
+            .build();
+            
+        // Check if the file would be included by the walker
+        for result in walker {
+            if let Ok(entry) = result {
+                if entry.path() == file_path {
+                    return entry.path().is_file() && self.should_index_file(file_path);
+                }
+            }
+        }
+        
+        false
+    }
 }

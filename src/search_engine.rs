@@ -1,4 +1,5 @@
 use crate::config::Config;
+use crate::debug_trace;
 use crate::file_scanner::FileScanner;
 use crate::metadata::IndexMetadata;
 use crate::reranker::{RerankDocument, Reranker, RerankerConfig};
@@ -95,6 +96,77 @@ impl SearchEngine {
         metadata.save(&self.metadata_path)?;
 
         println!("Index rebuilt. {file_count} files indexed.");
+        Ok(())
+    }
+
+    pub fn rebuild_index_for_files(&self, file_paths: &[String]) -> Result<()> {
+        debug_trace!("Rebuilding index for {} specific files", file_paths.len());
+        
+        let scanner = FileScanner::new(&self.root_dir);
+        let mut validated_files = Vec::new();
+        
+        // Validate and convert file paths
+        for file_path in file_paths {
+            let path = PathBuf::from(file_path);
+            let absolute_path = if path.is_absolute() {
+                path
+            } else {
+                self.root_dir.join(&path)
+            };
+            
+            debug_trace!("Checking file: {}", absolute_path.display());
+            
+            // Check if file exists
+            if !absolute_path.exists() {
+                return Err(anyhow::anyhow!("File does not exist: {}", absolute_path.display()));
+            }
+            
+            // Check if file should be excluded based on scanner rules
+            if !scanner.should_include_file(&absolute_path) {
+                return Err(anyhow::anyhow!(
+                    "File '{}' is excluded by .gitignore or other exclusion rules",
+                    absolute_path.display()
+                ));
+            }
+            
+            debug_trace!("File validation passed: {}", absolute_path.display());
+            validated_files.push(absolute_path);
+        }
+        
+        if validated_files.is_empty() {
+            println!("No valid files to reindex.");
+            return Ok(());
+        }
+        
+        println!("Reindexing {} specific files...", validated_files.len());
+        
+        let language = self.config.get_language()?;
+        let mut index = match SearchIndex::open(&self.index_dir, language, self.config.stemming.enabled) {
+            Ok(index) => index,
+            Err(_) => {
+                debug_trace!("Creating new index as existing one couldn't be opened");
+                SearchIndex::new(&self.index_dir, language, self.config.stemming.enabled)?
+            }
+        };
+
+        // Index the specific files
+        let indexed_files = index.index_files(validated_files.into_iter(), 8)?;
+
+        // Update metadata
+        let mut metadata = IndexMetadata::load(&self.metadata_path).unwrap_or_else(|_| {
+            debug_trace!("Creating new metadata as existing couldn't be loaded");
+            IndexMetadata::new()
+        });
+        
+        let mut reindexed_count = 0;
+        for file in indexed_files {
+            metadata.update_file(&file)?;
+            reindexed_count += 1;
+        }
+        
+        metadata.save(&self.metadata_path)?;
+        println!("Reindexing complete. {} files processed.", reindexed_count);
+        
         Ok(())
     }
 
