@@ -29,16 +29,32 @@ impl SearchEngine {
         })
     }
 
-    pub fn ensure_index_updated(&self) -> Result<()> {
+    pub fn ensure_index_updated(&self, verbose: bool) -> Result<()> {
         let scanner = FileScanner::new(&self.root_dir);
         let files_iter = scanner.iter_files();
         let files: Vec<_> = files_iter.collect::<Vec<_>>();
 
+        if verbose {
+            println!("[VERBOSE] Found {} files to check", files.len());
+        }
+
         let mut metadata = IndexMetadata::load(&self.metadata_path)?;
-        let changed_files = metadata.needs_reindex(&files)?;
+        
+        if verbose {
+            println!("[VERBOSE] Loaded metadata with {} files", metadata.file_count());
+        }
+        
+        let changed_files = metadata.needs_reindex(&files, verbose)?;
 
         if !changed_files.is_empty() {
             println!("Indexing {} changed files...", changed_files.len());
+
+            if verbose {
+                println!("[VERBOSE] Files that need reindexing:");
+                for file in &changed_files {
+                    println!("[VERBOSE]   - {}", file.display());
+                }
+            }
 
             let language = self.config.get_language()?;
             let mut index =
@@ -63,16 +79,21 @@ impl SearchEngine {
 
             metadata.save(&self.metadata_path)?;
             println!("Index updated. {} files tracked.", files.len());
+        } else if verbose {
+            println!("[VERBOSE] No files need reindexing");
         }
 
         Ok(())
     }
 
-    pub fn rebuild_index(&self) -> Result<()> {
+    pub fn rebuild_index(&self, verbose: bool) -> Result<()> {
         println!("Rebuilding index from scratch...");
 
         // Remove existing index directory if it exists to handle schema changes
         if self.index_dir.exists() {
+            if verbose {
+                println!("[VERBOSE] Removing existing index directory: {}", self.index_dir.display());
+            }
             std::fs::remove_dir_all(&self.index_dir)?;
         }
 
@@ -89,9 +110,18 @@ impl SearchEngine {
         let mut metadata = IndexMetadata::new();
         let mut file_count = 0;
         for file in indexed_files {
+            if verbose && file_count < 10 {
+                println!("[VERBOSE] Saving metadata for: {}", file.display());
+            }
             metadata.update_file(&file)?;
             file_count += 1;
         }
+        
+        if verbose {
+            println!("[VERBOSE] Saving metadata to: {}", self.metadata_path.display());
+            println!("[VERBOSE] Total files in metadata: {}", metadata.file_count());
+        }
+        
         metadata.save(&self.metadata_path)?;
 
         println!("Index rebuilt. {file_count} files indexed.");

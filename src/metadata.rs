@@ -38,11 +38,15 @@ impl IndexMetadata {
         Ok(())
     }
 
-    pub fn needs_reindex(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    pub fn needs_reindex(&self, files: &[PathBuf], verbose: bool) -> Result<Vec<PathBuf>> {
         let mut changed_files = Vec::new();
 
         for file in files {
-            if self.file_changed(file)? {
+            let (changed, reason) = self.file_changed_with_reason(file)?;
+            if changed {
+                if verbose {
+                    println!("[VERBOSE] File needs reindexing: {} - Reason: {}", file.display(), reason);
+                }
                 changed_files.push(file.clone());
             }
         }
@@ -66,16 +70,23 @@ impl IndexMetadata {
         Ok(())
     }
 
-    fn file_changed(&self, path: &Path) -> Result<bool> {
+    fn file_changed_with_reason(&self, path: &Path) -> Result<(bool, String)> {
         let current_metadata = match fs::metadata(path) {
             Ok(meta) => meta,
-            Err(_) => return Ok(true), // File doesn't exist, consider it changed
+            Err(e) => return Ok((true, format!("File doesn't exist or can't be read: {}", e))),
         };
 
         match self.files.get(path) {
-            Some(cached_info) => Ok(cached_info.size != current_metadata.len()
-                || cached_info.modified != current_metadata.modified()?),
-            None => Ok(true), // File not in cache, needs indexing
+            Some(cached_info) => {
+                if cached_info.size != current_metadata.len() {
+                    Ok((true, format!("Size changed: {} -> {}", cached_info.size, current_metadata.len())))
+                } else if cached_info.modified != current_metadata.modified()? {
+                    Ok((true, format!("Modified time changed: {:?} -> {:?}", cached_info.modified, current_metadata.modified()?)))
+                } else {
+                    Ok((false, "No changes".to_string()))
+                }
+            }
+            None => Ok((true, "File not in metadata cache".to_string())),
         }
     }
 
