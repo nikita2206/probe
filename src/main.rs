@@ -66,7 +66,12 @@ enum Commands {
     #[command(about = "Rebuild search index")]
     Rebuild,
     #[command(about = "Show index statistics")]
-    Stats,
+    Stats {
+        #[arg(long, help = "List all indexed files")]
+        ls_files: bool,
+        #[arg(long, help = "Show files that would be indexed")]
+        status: bool,
+    },
     #[command(about = "List available reranking models")]
     ListModels,
     #[command(about = "Show how files are chunked for indexing")]
@@ -86,9 +91,9 @@ fn main() -> Result<()> {
             let engine = SearchEngine::new(&root_dir)?;
             engine.rebuild_index()?;
         }
-        Some(Commands::Stats) => {
+        Some(Commands::Stats { ls_files, status }) => {
             let engine = SearchEngine::new(&root_dir)?;
-            engine.stats()?;
+            engine.stats(ls_files, status)?;
         }
         Some(Commands::ListModels) => {
             println!("Available reranking models:");

@@ -184,10 +184,35 @@ impl SearchEngine {
         Ok(results)
     }
 
-    pub fn stats(&self) -> Result<()> {
+    pub fn stats(&self, ls_files: bool, status: bool) -> Result<()> {
         let metadata = IndexMetadata::load(&self.metadata_path)?;
-        println!("Files in index: {}", metadata.file_count());
-        println!("Index directory: {}", self.index_dir.display());
+
+        if ls_files {
+            for file in metadata.list_files() {
+                println!("{}", file.display());
+            }
+        }
+
+        if status {
+            let scanner = FileScanner::new(&self.root_dir);
+            let files: Vec<_> = scanner.iter_files().collect();
+            let changed_files = metadata.needs_reindex(&files)?;
+
+            if changed_files.is_empty() {
+                println!("Index is up to date.");
+            } else {
+                println!("Files to be indexed:");
+                for file in changed_files {
+                    println!("{}", file.display());
+                }
+            }
+        }
+
+        if !ls_files && !status {
+            println!("Files in index: {}", metadata.file_count());
+            println!("Index directory: {}", self.index_dir.display());
+        }
+
         Ok(())
     }
 }

@@ -82,4 +82,8 @@ impl IndexMetadata {
     pub fn file_count(&self) -> usize {
         self.files.len()
     }
+
+    pub fn list_files(&self) -> impl Iterator<Item = &PathBuf> {
+        self.files.keys()
+    }
 }
