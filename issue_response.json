@@ -1,0 +1,77 @@
+{
+  "url": "https://api.github.com/repos/nikita2206/probe/issues/31",
+  "repository_url": "https://api.github.com/repos/nikita2206/probe",
+  "labels_url": "https://api.github.com/repos/nikita2206/probe/issues/31/labels{/name}",
+  "comments_url": "https://api.github.com/repos/nikita2206/probe/issues/31/comments",
+  "events_url": "https://api.github.com/repos/nikita2206/probe/issues/31/events",
+  "html_url": "https://github.com/nikita2206/probe/issues/31",
+  "id": 3483533436,
+  "node_id": "I_kwDOPIMeps7PooB8",
+  "number": 31,
+  "title": "Architecture assessment and improvement plan for probe",
+  "user": {
+    "login": "cursor[bot]",
+    "id": 206951365,
+    "node_id": "BOT_kgDODFXTxQ",
+    "avatar_url": "https://avatars.githubusercontent.com/in/1210556?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/cursor%5Bbot%5D",
+    "html_url": "https://github.com/apps/cursor",
+    "followers_url": "https://api.github.com/users/cursor%5Bbot%5D/followers",
+    "following_url": "https://api.github.com/users/cursor%5Bbot%5D/following{/other_user}",
+    "gists_url": "https://api.github.com/users/cursor%5Bbot%5D/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/cursor%5Bbot%5D/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/cursor%5Bbot%5D/subscriptions",
+    "organizations_url": "https://api.github.com/users/cursor%5Bbot%5D/orgs",
+    "repos_url": "https://api.github.com/users/cursor%5Bbot%5D/repos",
+    "events_url": "https://api.github.com/users/cursor%5Bbot%5D/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/cursor%5Bbot%5D/received_events",
+    "type": "Bot",
+    "user_view_type": "public",
+    "site_admin": false
+  },
+  "labels": [
+
+  ],
+  "state": "open",
+  "locked": false,
+  "assignee": null,
+  "assignees": [
+
+  ],
+  "milestone": null,
+  "comments": 0,
+  "created_at": "2025-10-04T10:34:55Z",
+  "updated_at": "2025-10-04T10:34:55Z",
+  "closed_at": null,
+  "author_association": "NONE",
+  "active_lock_reason": null,
+  "sub_issues_summary": {
+    "total": 0,
+    "completed": 0,
+    "percent_completed": 0
+  },
+  "issue_dependencies_summary": {
+    "blocked_by": 0,
+    "total_blocked_by": 0,
+    "blocking": 0,
+    "total_blocking": 0
+  },
+  "body": "## Summary\n- **Separation of concerns is solid** across scanning, chunking, indexing, reranking, and CLI.\n- **Search quality is good** with field boosts and ML reranking; Java chunking adds structure.\n- **Clear opportunities** to tighten index schema, blend scores, expand languages, and streamline UX.\n\n### Architecture overview\n- `SearchEngine`: Orchestrates incremental indexing (`.probe/metadata.bin`), rebuilds, and high-level search with optional reranking.\n- `SearchIndex` (tantivy): Defines schema, tokenization, indexing (parallel chunking), searching, snippets, and simple score penalties.\n- `Reranker` (fastembed): Loads built‑in or custom HF models; reranks documents, returning ML scores.\n- `CodeChunker` + `LanguageProcessor` (tree‑sitter): Java parser splits classes/methods with declaration/body context and line ranges.\n- `FileScanner` (ignore): Walks repo respecting .gitignore; filters binaries by extension.\n- `Config`: Project config (`probe.yml`) for stemming and language; user config (`~/.probe/config.yaml`) for custom rerankers.\n- `CLI`: Rebuild/stats/list-models/show-chunks and search with rerank knobs.\n\n### Strengths\n- **Modular design**: Each responsibility lives in a focused module; easy to extend.\n- **Incremental indexing** with metadata and a clean rebuild path.\n- **Language-aware chunking** for Java yields semantically meaningful results and better snippets.\n- **ML reranking** with support for custom Hugging Face models.\n- **Reasonable defaults** for field boosts (declaration > names > body) and snippet highlighting.\n\n### Improvement opportunities and recommendations\n- **Index schema and query**\n  - Use exact, non-tokenized fields for `filetype`, `chunk_type`, and `path` to make filters precise and faster; keep a separate tokenized `path_components` for partial matches if needed.\n  - Normalize and store paths relative to the project root to improve portability and output readability.\n  - Consider storing less in the index: avoid storing full `body` for large chunks; re-read from file for snippets or store compact windows around declarations.\n\n- **Scoring and reranking**\n  - Blend BM25 and reranker scores instead of replacing: `final = α·normalize(bm25) + (1−α)·normalize(ml)` with configurable `α`.\n  - Move hand-tuned penalties (tests/classes) into a configurable scoring policy (YAML), and add path-aware boosts (e.g., prioritize `src/main`, down-rank `vendor`/generated).\n  - Add optional freshness/churn signals via git metadata (recently modified, frequently edited) as boosts.\n  - Truncate or summarize documents sent to the reranker (declaration + leading lines or the most relevant spans) to reduce latency and improve signal.\n\n- **Chunking and languages**\n  - Add processors for TS/JS, Python, Rust, and Go; keep Java path as a template. Provide a generic tree-sitter fallback.\n  - Add chunk-size controls (merge small methods, split oversized chunks) to balance recall vs noise.\n  - Persist stable chunk IDs and offsets to enable editor integrations and precise navigation.\n\n- **Index lifecycle and metadata**\n  - Record an explicit schema/version and relevant config (e.g., stemming) in metadata; auto-rebuild if it changes to avoid compatibility branches.\n  - Handle deletions: remove docs for files that no longer exist (tombstones or delete-by-path map).\n\n- **Performance and concurrency**\n  - Batch adds and commit by configurable batch size; tune Tantivy merge policy for many small docs.\n  - Separate bounded pools for parsing/chunking vs indexing to avoid oversubscription; expose `--index-threads`.\n  - Optional daemon/watch mode to keep index hot for large repos.\n\n- **CLI and UX**\n  - Unify default reranker: library default is BGE; CLI fallback currently resolves to JINA in several branches—pick one source of truth and document it.\n  - Add `--json` output including `path`, `score`, `chunk_type`, `chunk_name`, `start_line`, `end_line` for tool/IDE integrations.\n  - Add `--path` prefix filter and `--ignore` globs to complement .gitignore.\n  - Enhance `show-chunks` with `--json` and line numbers; add `--open` to launch `$EDITOR +{line} {file}`.\n\n- **Reliability and correctness**\n  - Improve binary detection beyond extension (quick NUL-byte scan) and add a `max_file_size` guard.\n  - Cap snippet size and highlight a small window around matches for very large functions.\n\n- **Testing and quality**\n  - Property tests for chunker (balanced braces, nested classes, comments, javadoc placement).\n  - Integration tests: schema migration, deletion handling, rerank blending, path filters, multi-language processors.\n  - Structured logging via `tracing` with `RUST_LOG=probe=info` and model download stubbing in tests.\n\n- **Extensibility**\n  - Language processor registry behind feature flags to slim binaries.\n  - Optional lightweight HTTP/gRPC service to expose JSON search for editors.\n\n### Quick wins\n- Switch `filetype`/`chunk_type`/`path` to exact non-tokenized fields and adjust query building.\n- Normalize relative paths in outputs and index.\n- Externalize penalties/boosts to config.\n- Add `--json` output and `--path` filter.\n- Unify default reranker selection in one place.\n\n### Deeper enhancements\n- Score blending with configurable weights and extra features (recency, path boosts).\n- Schema versioning with auto-rebuild and deletion handling.\n- Multi-language processors and watcher-based continuous indexing.\n\n### Proposed next steps\n- [ ] Align reranker defaults and document model choices.\n- [ ] Convert fields to exact-match where appropriate and add `--json` output.\n- [ ] Introduce config-driven scoring policy and remove hard-coded penalties.\n- [ ] Add deletion handling and schema/version tracking with auto-rebuild.\n- [ ] Plan multi-language support (prioritize TS/JS and Python) and chunk-size controls.\n",
+  "closed_by": null,
+  "reactions": {
+    "url": "https://api.github.com/repos/nikita2206/probe/issues/31/reactions",
+    "total_count": 0,
+    "+1": 0,
+    "-1": 0,
+    "laugh": 0,
+    "hooray": 0,
+    "confused": 0,
+    "heart": 0,
+    "rocket": 0,
+    "eyes": 0
+  },
+  "timeline_url": "https://api.github.com/repos/nikita2206/probe/issues/31/timeline",
+  "performed_via_github_app": null,
+  "state_reason": null
+}
