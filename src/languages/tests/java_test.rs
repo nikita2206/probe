@@ -306,7 +306,7 @@ fn test_java_class_declaration_chunking() {
         "Class declaration should include class header"
     );
 
-    // Class content should include fields with javadocs but without initializers
+    // Class content should include fields with javadocs and initializers
     assert!(
         class_chunk.content.contains("User's unique identifier"),
         "Class content should include field javadoc"
@@ -319,10 +319,10 @@ fn test_java_class_declaration_chunking() {
         class_chunk.content.contains("User's email address"),
         "Class content should include field javadoc for email"
     );
-    // The initializer should be removed
+    // The initializer should be included
     assert!(
-        !class_chunk.content.contains("default@example.com"),
-        "Class content should NOT include field initializers"
+        class_chunk.content.contains("default@example.com"),
+        "Class content should include field initializers"
     );
 
     // Remaining chunks should be methods
