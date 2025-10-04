@@ -297,32 +297,34 @@ fn test_java_class_declaration_chunking() {
     assert_eq!(class_chunk.name, "User");
 
     // Class declaration should include javadoc and class header
-    assert!(
-        class_chunk.declaration.contains("User entity class"),
-        "Class declaration should include class javadoc"
-    );
-    assert!(
-        class_chunk.declaration.contains("public class User {"),
-        "Class declaration should include class header"
+    let expected_class_declaration = indoc! {r#"
+        /**
+         * User entity class
+         * Represents a user in the system
+         */
+        public class User {
+    "#};
+    assert_eq!(
+        class_chunk.declaration.trim(),
+        expected_class_declaration.trim(),
+        "Class declaration should match exactly"
     );
 
-    // Class content should include fields with javadocs and initializers
-    assert!(
-        class_chunk.content.contains("User's unique identifier"),
-        "Class content should include field javadoc"
+    // Class content should include all fields with javadocs and initializers
+    let expected_class_content = indent_string(
+        indoc! {r#"
+        /** User's unique identifier */
+        private String id;
+        private String username;
+        /** User's email address */
+        private String email = "default@example.com";
+    "#},
+        4,
     );
-    assert!(
-        class_chunk.content.contains("private String id;"),
-        "Class content should include field declarations"
-    );
-    assert!(
-        class_chunk.content.contains("User's email address"),
-        "Class content should include field javadoc for email"
-    );
-    // The initializer should be included
-    assert!(
-        class_chunk.content.contains("default@example.com"),
-        "Class content should include field initializers"
+    assert_eq!(
+        class_chunk.content.trim(),
+        expected_class_content.trim(),
+        "Class content should match exactly"
     );
 
     // Remaining chunks should be methods
@@ -384,11 +386,27 @@ fn test_java_nested_class_declaration_chunking() {
     let outer_class_chunk = &chunks[0];
     assert_eq!(outer_class_chunk.chunk_type, ChunkType::Class);
     assert_eq!(outer_class_chunk.name, "OuterClass");
-    assert!(
-        outer_class_chunk
-            .content
-            .contains("private String outerField"),
-        "Outer class content should include its field"
+
+    let expected_outer_declaration = indoc! {r#"
+        /**
+         * Outer class
+         */
+        public class OuterClass {
+    "#};
+    assert_eq!(
+        outer_class_chunk.declaration.trim(),
+        expected_outer_declaration.trim()
+    );
+
+    let expected_outer_content = indent_string(
+        indoc! {r#"
+        private String outerField;
+    "#},
+        4,
+    );
+    assert_eq!(
+        outer_class_chunk.content.trim(),
+        expected_outer_content.trim()
     );
 
     // Second chunk: InnerClass
@@ -397,25 +415,33 @@ fn test_java_nested_class_declaration_chunking() {
     assert_eq!(inner_class_chunk.name, "InnerClass");
 
     // Inner class declaration should include compact outer class context
-    assert!(
-        inner_class_chunk
-            .declaration
-            .contains("public class OuterClass {"),
-        "Inner class declaration should include compact outer class"
+    let expected_inner_declaration = format!(
+        "public class OuterClass {{\n{}",
+        indent_string(
+            indoc! {r#"
+            /**
+             * Inner class
+             */
+            public static class InnerClass {
+        "#},
+            4
+        )
     );
-    assert!(
-        inner_class_chunk.declaration.contains("Inner class"),
-        "Inner class declaration should include its own javadoc"
+    assert_eq!(
+        inner_class_chunk.declaration.trim(),
+        expected_inner_declaration.trim()
     );
 
-    // Inner class content should include its own fields
-    assert!(
-        inner_class_chunk.content.contains("Inner field"),
-        "Inner class content should include field javadoc"
+    let expected_inner_content = indent_string(
+        indoc! {r#"
+        /** Inner field */
+        private int innerField;
+    "#},
+        8,
     );
-    assert!(
-        inner_class_chunk.content.contains("private int innerField"),
-        "Inner class content should include its field"
+    assert_eq!(
+        inner_class_chunk.content.trim(),
+        expected_inner_content.trim()
     );
 
     // Third and fourth chunks: methods
@@ -474,18 +500,19 @@ fn test_java_interface_declaration_chunking() {
     assert_eq!(interface_chunk.chunk_type, ChunkType::Class);
     assert_eq!(interface_chunk.name, "UserService");
 
-    assert!(
-        interface_chunk
-            .declaration
-            .contains("Service interface for user operations"),
-        "Interface declaration should include interface javadoc"
+    let expected_interface_declaration = indoc! {r#"
+        /**
+         * Service interface for user operations
+         */
+        public interface UserService {
+    "#};
+    assert_eq!(
+        interface_chunk.declaration.trim(),
+        expected_interface_declaration.trim()
     );
-    assert!(
-        interface_chunk
-            .declaration
-            .contains("public interface UserService {"),
-        "Interface declaration should include interface header"
-    );
+
+    // Interface content should be empty (interfaces don't have fields, only method signatures)
+    assert_eq!(interface_chunk.content.trim(), "");
 
     // Remaining chunks should be methods
     assert_eq!(chunks[1].chunk_type, ChunkType::Method);
@@ -545,21 +572,20 @@ fn test_java_record_declaration_chunking() {
     assert_eq!(record_chunk.name, "Person");
 
     // Record declaration should include javadoc and full record header with parameters
-    assert!(
-        record_chunk
-            .declaration
-            .contains("A record representing a person"),
-        "Record declaration should include record javadoc"
-    );
-    assert!(
-        record_chunk
-            .declaration
-            .contains("public record Person(String name, int age, String email) {"),
-        "Record declaration should include record header with all parameters"
+    let expected_record_declaration = indoc! {r#"
+        /**
+         * A record representing a person with basic information
+         */
+        public record Person(String name, int age, String email) {
+    "#};
+    assert_eq!(
+        record_chunk.declaration.trim(),
+        expected_record_declaration.trim()
     );
 
-    // Record content should be empty or minimal since records don't typically have fields
+    // Record content should be empty since records don't have fields in the body
     // (the parameters in the record declaration ARE the fields)
+    assert_eq!(record_chunk.content.trim(), "");
 
     // Remaining chunks should be methods
     assert_eq!(chunks[1].chunk_type, ChunkType::Method);

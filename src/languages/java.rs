@@ -192,14 +192,43 @@ impl JavaProcessor {
             if body_cursor.goto_first_child() {
                 loop {
                     let child = body_cursor.node();
-                    // Include everything except methods and constructors
-                    if child.kind() != "method_declaration"
-                        && child.kind() != "constructor_declaration"
+                    let child_kind = child.kind();
+
+                    // Skip braces, methods, constructors, and nested classes
+                    if child_kind != "{"
+                        && child_kind != "}"
+                        && child_kind != "method_declaration"
+                        && child_kind != "constructor_declaration"
+                        && child_kind != "class_declaration"
+                        && child_kind != "interface_declaration"
+                        && child_kind != "record_declaration"
                     {
-                        let line_start = self.get_line_start_index(child);
-                        let child_text = &content[line_start..child.end_byte()];
-                        result.push_str(child_text);
-                        result.push('\n');
+                        // For comments, check if the next sibling is a method/constructor/nested class
+                        // If so, skip this comment as it belongs to that declaration
+                        let should_skip_comment = (child_kind == "comment"
+                            || child_kind == "block_comment"
+                            || child_kind == "line_comment")
+                            && {
+                                if let Some(next_sibling) = child.next_sibling() {
+                                    matches!(
+                                        next_sibling.kind(),
+                                        "method_declaration"
+                                            | "constructor_declaration"
+                                            | "class_declaration"
+                                            | "interface_declaration"
+                                            | "record_declaration"
+                                    )
+                                } else {
+                                    false
+                                }
+                            };
+
+                        if !should_skip_comment {
+                            let line_start = self.get_line_start_index(child);
+                            let child_text = &content[line_start..child.end_byte()];
+                            result.push_str(child_text);
+                            result.push('\n');
+                        }
                     }
                     if !body_cursor.goto_next_sibling() {
                         break;
