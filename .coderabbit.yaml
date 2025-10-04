@@ -1,0 +1,28 @@
+# See https://docs.coderabbit.ai/reference/configuration/
+reviews:
+  # It's a rust project, so let's enable clippy
+  tools:
+    clippy:
+      enabled: true
+
+  # Keep reviews chill
+  profile: "chill"
+
+  # Automatically review all PRs
+  auto_review:
+    enabled: true
+    drafts: false # but not drafts
+
+  # Don't suggest labels, as this repo doesn't use them
+  suggested_labels: false
+
+  # Give a high level summary of the changes
+  high_level_summary: true
+
+  # Disable features that are not relevant for this project
+  sequence_diagrams: false
+  estimate_code_review_effort: false
+  assess_linked_issues: false
+  related_issues: false
+  poem: false
+  suggested_reviewers: false
