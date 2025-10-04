@@ -215,6 +215,17 @@ impl SearchIndex {
                         Ok(content) => content,
                         Err(_) => return, // Skip files we can't read as text
                     };
+
+                    // Skip files with lines longer than 8096 bytes
+                    const MAX_LINE_LENGTH: usize = 8096;
+                    if content.lines().any(|line| line.len() > MAX_LINE_LENGTH) {
+                        eprintln!(
+                            "Skipping {}: contains line(s) longer than {} bytes",
+                            file_path.display(),
+                            MAX_LINE_LENGTH
+                        );
+                        return;
+                    }
                     let extension = file_path
                         .extension()
                         .and_then(|ext| ext.to_str())
@@ -381,6 +392,13 @@ impl SearchIndex {
                         self.highlight_content(body_content, &snippet_generator)?;
                     format!("{declaration_highlighted}{body_highlighted}")
                 }
+            } else if matches!(chunk_type.as_deref(), Some("Other") | Some("file")) {
+                // For unsupported languages (entire files indexed), show relevant segments with context
+                self.extract_relevant_segment_with_context(
+                    body_content,
+                    &snippet_generator,
+                    3, // Number of context lines before and after
+                )?
             } else {
                 // For other chunk types, use the default snippet behavior
                 let snippet = snippet_generator.snippet_from_doc(&retrieved_doc);
@@ -524,6 +542,112 @@ impl SearchIndex {
         // Add remaining text after last highlight
         if last_end < content.len() {
             result.push_str(&content[last_end..]);
+        }
+
+        Ok(result)
+    }
+
+    /// Extract the most relevant segment from a file with context lines around it.
+    /// This is used for unsupported languages where entire files are indexed.
+    fn extract_relevant_segment_with_context(
+        &self,
+        content: &str,
+        snippet_generator: &SnippetGenerator,
+        context_lines: usize,
+    ) -> Result<String> {
+        // Generate snippet to find the most relevant fragment
+        let snippet = snippet_generator.snippet(content);
+        let fragment = snippet.fragment();
+        let highlighted_ranges = snippet.highlighted();
+
+        // If no highlighting, just return the default snippet
+        if highlighted_ranges.is_empty() {
+            return Ok(self.render_snippet_with_terminal_colors(&snippet));
+        }
+
+        // Find where the fragment appears in the full content
+        let fragment_offset = content.find(fragment).unwrap_or(0);
+
+        // Convert content to lines for easier line-based extraction
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Find which line contains the fragment
+        let mut byte_count = 0;
+        let mut fragment_line_idx = 0;
+        for (idx, line) in lines.iter().enumerate() {
+            let line_end = byte_count + line.len();
+            if fragment_offset >= byte_count && fragment_offset < line_end {
+                fragment_line_idx = idx;
+                break;
+            }
+            byte_count = line_end + 1; // +1 for newline
+        }
+
+        // Calculate the range of lines to extract (with context)
+        let start_line = fragment_line_idx.saturating_sub(context_lines);
+        let end_line = (fragment_line_idx + context_lines + 1).min(lines.len());
+
+        // Extract the segment
+        let segment_lines = &lines[start_line..end_line];
+        let segment = segment_lines.join("\n");
+
+        // Calculate the offset adjustment for highlighting
+        let mut segment_start_offset = 0;
+        for line in &lines[0..start_line] {
+            segment_start_offset += line.len() + 1; // +1 for newline
+        }
+
+        // Highlight the segment using the original highlight ranges
+        let use_colors = atty::is(Stream::Stdout);
+        let (highlight_start, highlight_end) = if use_colors {
+            ("\x1b[1;33m", "\x1b[0m") // Bold yellow
+        } else {
+            ("", "")
+        };
+
+        let mut result = String::new();
+        let mut last_end = 0;
+
+        // Sort ranges by start position
+        let mut ranges: Vec<_> = highlighted_ranges.to_vec();
+        ranges.sort_by_key(|r| r.start);
+
+        for range in ranges {
+            let abs_start = fragment_offset + range.start;
+            let abs_end = fragment_offset + range.end;
+
+            // Skip ranges outside our segment
+            if abs_end < segment_start_offset {
+                continue;
+            }
+            if abs_start >= segment_start_offset + segment.len() {
+                break;
+            }
+
+            // Adjust the range to be relative to our segment
+            let seg_start = abs_start.saturating_sub(segment_start_offset);
+            let seg_end = if abs_end > segment_start_offset {
+                (abs_end - segment_start_offset).min(segment.len())
+            } else {
+                continue;
+            };
+
+            // Add text before highlight
+            if seg_start > last_end {
+                result.push_str(&segment[last_end..seg_start]);
+            }
+
+            // Add highlighted text
+            result.push_str(highlight_start);
+            result.push_str(&segment[seg_start..seg_end]);
+            result.push_str(highlight_end);
+
+            last_end = seg_end;
+        }
+
+        // Add remaining text after last highlight
+        if last_end < segment.len() {
+            result.push_str(&segment[last_end..]);
         }
 
         Ok(result)
