@@ -55,14 +55,26 @@ impl JavaProcessor {
         match node.kind() {
             "class_declaration" | "interface_declaration" | "record_declaration" => {
                 let container_name = self.get_container_name(node, content);
+
+                // Create a Class chunk for this class/interface/record declaration
+                let (declaration, class_content) = self.extract_class_chunk(node, content, stack);
+                chunks.push(CodeChunk {
+                    start_line: node.start_position().row,
+                    end_line: node.end_position().row,
+                    chunk_type: ChunkType::Class,
+                    name: container_name.clone(),
+                    content: class_content,
+                    declaration,
+                });
+
                 stack.push((node, container_name));
 
-                // Process children
+                // Process children (to collect method chunks)
                 self.traverse_children(node, content, stack, chunks);
 
                 stack.pop();
             }
-            "method_declaration" => {
+            "method_declaration" | "constructor_declaration" => {
                 // Skip lambdas/anonymous methods that don't have identifiable names
                 if let Some(method_name) = self.get_method_name(node, content) {
                     let (declaration, body) =
@@ -106,6 +118,126 @@ impl JavaProcessor {
             }
         }
         None
+    }
+
+    /// Extracts a class chunk with its context from enclosing classes.
+    /// Returns (declaration, content) where:
+    /// - declaration includes: enclosing classes (compact), class javadoc, class header
+    /// - content includes: everything in the class body except methods
+    fn extract_class_chunk(
+        &self,
+        class_node: Node,
+        content: &str,
+        stack: &[(Node, String)],
+    ) -> (String, String) {
+        let mut declaration = String::new();
+
+        // Build the context from enclosing classes (compact form - just declarations)
+        for (i, (container_node, _container_name)) in stack.iter().enumerate() {
+            if i > 0 {
+                declaration.push('\n');
+            }
+
+            // For enclosing classes, just include the compact declaration
+            let compact_decl = self.extract_class_header_only(*container_node, content);
+            declaration.push_str(&compact_decl);
+        }
+
+        // Add the current class with javadoc and full declaration
+        let (_class_start, start_node) = self.find_container_start_with_comments(class_node);
+        let class_body_start = self.find_container_body_start(class_node);
+
+        if let Some(body_start) = class_body_start {
+            // Get line start index to include indentation
+            let line_start_index = self.get_line_start_index(start_node);
+            let class_header_with_indent = &content[line_start_index..body_start + 1];
+            declaration.push_str(class_header_with_indent);
+        }
+
+        // Extract class body content (everything except methods)
+        let class_content = self.extract_class_body_without_methods(class_node, content);
+
+        (declaration.trim_end().to_string(), class_content)
+    }
+
+    /// Extracts just the class header line in compact form (no javadoc, just the declaration line)
+    fn extract_class_header_only(&self, class_node: Node, content: &str) -> String {
+        let class_body_start = self.find_container_body_start(class_node);
+
+        if let Some(body_start) = class_body_start {
+            let line_start_index = self.get_line_start_index(class_node);
+            let class_header = &content[line_start_index..body_start + 1];
+            class_header.to_string()
+        } else {
+            // Fallback: extract entire node text
+            class_node
+                .utf8_text(content.as_bytes())
+                .unwrap_or("")
+                .to_string()
+        }
+    }
+
+    /// Extracts everything from the class body except method/constructor declarations
+    fn extract_class_body_without_methods(&self, class_node: Node, content: &str) -> String {
+        let mut result = String::new();
+        let mut cursor = class_node.walk();
+
+        // Find the class body
+        if let Some(body_node) = utils::find_child_node(
+            &mut cursor,
+            &["class_body", "interface_body", "record_body"],
+        ) {
+            // Traverse children of the body
+            let mut body_cursor = body_node.walk();
+            if body_cursor.goto_first_child() {
+                loop {
+                    let child = body_cursor.node();
+                    let child_kind = child.kind();
+
+                    // Skip braces, methods, constructors, and nested classes
+                    if child_kind != "{"
+                        && child_kind != "}"
+                        && child_kind != "method_declaration"
+                        && child_kind != "constructor_declaration"
+                        && child_kind != "class_declaration"
+                        && child_kind != "interface_declaration"
+                        && child_kind != "record_declaration"
+                    {
+                        // For comments, check if the next sibling is a method/constructor/nested class
+                        // If so, skip this comment as it belongs to that declaration
+                        let should_skip_comment = (child_kind == "comment"
+                            || child_kind == "block_comment"
+                            || child_kind == "line_comment")
+                            && {
+                                if let Some(next_sibling) = child.next_sibling() {
+                                    matches!(
+                                        next_sibling.kind(),
+                                        "method_declaration"
+                                            | "constructor_declaration"
+                                            | "class_declaration"
+                                            | "interface_declaration"
+                                            | "record_declaration"
+                                    )
+                                } else {
+                                    false
+                                }
+                            };
+
+                        if !should_skip_comment {
+                            let line_start = self.get_line_start_index(child);
+                            let child_text = &content[line_start..child.end_byte()];
+                            result.push_str(child_text);
+                            result.push('\n');
+                        }
+                    }
+                    if !body_cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        result.trim_end().to_string()
     }
 
     /// Extracts the method with its full context from nested classes/interfaces

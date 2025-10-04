@@ -30,11 +30,11 @@ class FooBar implements SomeInterface {
         .chunk_code(java_code)
         .expect("Failed to chunk Java code");
 
-    // Should extract exactly 2 chunks
+    // Should extract 1 class chunk + 2 method chunks = 3 chunks
     assert_eq!(
         chunks.len(),
-        2,
-        "Should extract exactly 2 chunks but got {}. Extracted chunks: {:?}",
+        3,
+        "Should extract exactly 3 chunks (1 class + 2 methods) but got {}. Extracted chunks: {:?}",
         chunks.len(),
         chunks
             .iter()
@@ -47,13 +47,18 @@ class FooBar implements SomeInterface {
     // 2. A placeholder for other methods (// ...)
     // 3. The specific method implementation
 
-    // First chunk should be for someMethod
-    let first_chunk = &chunks[0];
+    // First chunk should be the class
+    let class_chunk = &chunks[0];
+    assert_eq!(class_chunk.chunk_type, ChunkType::Class);
+    assert_eq!(class_chunk.name, "FooBar");
+
+    // Second chunk should be for someMethod
+    let first_chunk = &chunks[1];
     assert_eq!(first_chunk.chunk_type, ChunkType::Method);
     assert_eq!(first_chunk.name, "someMethod");
 
-    // Second chunk should be for doSomething method
-    let second_chunk = &chunks[1];
+    // Third chunk should be for doSomething method
+    let second_chunk = &chunks[2];
     assert_eq!(second_chunk.chunk_type, ChunkType::Method);
     assert_eq!(second_chunk.name, "doSomething");
 
@@ -142,11 +147,11 @@ fn test_java_multiline_declarations_chunking() {
         .chunk_code(java_code)
         .expect("Failed to chunk Java code");
 
-    // Should extract exactly 2 chunks
+    // Should extract 1 class chunk + 2 method chunks = 3 chunks
     assert_eq!(
         chunks.len(),
-        2,
-        "Should extract exactly 2 chunks but got {}. Extracted chunks: {:?}",
+        3,
+        "Should extract exactly 3 chunks (1 class + 2 methods) but got {}. Extracted chunks: {:?}",
         chunks.len(),
         chunks
             .iter()
@@ -154,13 +159,18 @@ fn test_java_multiline_declarations_chunking() {
             .collect::<Vec<_>>()
     );
 
-    // First chunk should be for veryLongMethod
-    let first_chunk = &chunks[0];
+    // First chunk should be the class
+    let class_chunk = &chunks[0];
+    assert_eq!(class_chunk.chunk_type, ChunkType::Class);
+    assert_eq!(class_chunk.name, "MultiLineClass");
+
+    // Second chunk should be for veryLongMethod
+    let first_chunk = &chunks[1];
     assert_eq!(first_chunk.chunk_type, ChunkType::Method);
     assert_eq!(first_chunk.name, "veryLongMethod");
 
-    // Second chunk should be for anotherMethod
-    let second_chunk = &chunks[1];
+    // Third chunk should be for anotherMethod
+    let second_chunk = &chunks[2];
     assert_eq!(second_chunk.chunk_type, ChunkType::Method);
     assert_eq!(second_chunk.name, "anotherMethod");
 
@@ -233,4 +243,353 @@ fn test_java_multiline_declarations_chunking() {
         expected_second_content.trim(),
         "Second chunk content should match expected structure"
     );
+}
+
+#[test]
+fn test_java_class_declaration_chunking() {
+    let java_code = indoc! {r#"
+        package com.example.model;
+
+        /**
+         * User entity class
+         * Represents a user in the system
+         */
+        public class User {
+            /** User's unique identifier */
+            private String id;
+            
+            private String username;
+            
+            /** User's email address */
+            private String email = "default@example.com";
+            
+            public User(String id, String username, String email) {
+                this.id = id;
+                this.username = username;
+                this.email = email;
+            }
+            
+            public String getId() { return id; }
+            public void setId(String id) { this.id = id; }
+        }
+    "#};
+
+    let mut processor = JavaProcessor::new().expect("Failed to create JavaProcessor");
+    let chunks = processor
+        .chunk_code(java_code)
+        .expect("Failed to chunk Java code");
+
+    // Should extract 1 class chunk + 3 method chunks = 4 total
+    assert_eq!(
+        chunks.len(),
+        4,
+        "Should extract exactly 4 chunks (1 class + 3 methods) but got {}. Extracted chunks: {:?}",
+        chunks.len(),
+        chunks
+            .iter()
+            .map(|c| format!("{:?} - {}", c.chunk_type, c.name))
+            .collect::<Vec<_>>()
+    );
+
+    // First chunk should be the Class chunk
+    let class_chunk = &chunks[0];
+    assert_eq!(class_chunk.chunk_type, ChunkType::Class);
+    assert_eq!(class_chunk.name, "User");
+
+    // Class declaration should include javadoc and class header
+    let expected_class_declaration = indoc! {r#"
+        /**
+         * User entity class
+         * Represents a user in the system
+         */
+        public class User {
+    "#};
+    assert_eq!(
+        class_chunk.declaration.trim(),
+        expected_class_declaration.trim(),
+        "Class declaration should match exactly"
+    );
+
+    // Class content should include all fields with javadocs and initializers
+    let expected_class_content = indent_string(
+        indoc! {r#"
+        /** User's unique identifier */
+        private String id;
+        private String username;
+        /** User's email address */
+        private String email = "default@example.com";
+    "#},
+        4,
+    );
+    assert_eq!(
+        class_chunk.content.trim(),
+        expected_class_content.trim(),
+        "Class content should match exactly"
+    );
+
+    // Remaining chunks should be methods
+    assert_eq!(chunks[1].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[1].name, "User"); // constructor
+    assert_eq!(chunks[2].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[2].name, "getId");
+    assert_eq!(chunks[3].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[3].name, "setId");
+}
+
+#[test]
+fn test_java_nested_class_declaration_chunking() {
+    let java_code = indoc! {r#"
+        package com.example;
+
+        /**
+         * Outer class
+         */
+        public class OuterClass {
+            private String outerField;
+            
+            /**
+             * Inner class
+             */
+            public static class InnerClass {
+                /** Inner field */
+                private int innerField;
+                
+                public void innerMethod() {
+                    System.out.println("Inner");
+                }
+            }
+            
+            public void outerMethod() {
+                System.out.println("Outer");
+            }
+        }
+    "#};
+
+    let mut processor = JavaProcessor::new().expect("Failed to create JavaProcessor");
+    let chunks = processor
+        .chunk_code(java_code)
+        .expect("Failed to chunk Java code");
+
+    // Should extract: 1 outer class + 1 inner class + 2 methods = 4 total
+    assert_eq!(
+        chunks.len(),
+        4,
+        "Should extract exactly 4 chunks but got {}. Extracted chunks: {:?}",
+        chunks.len(),
+        chunks
+            .iter()
+            .map(|c| format!("{:?} - {}", c.chunk_type, c.name))
+            .collect::<Vec<_>>()
+    );
+
+    // First chunk: OuterClass
+    let outer_class_chunk = &chunks[0];
+    assert_eq!(outer_class_chunk.chunk_type, ChunkType::Class);
+    assert_eq!(outer_class_chunk.name, "OuterClass");
+
+    let expected_outer_declaration = indoc! {r#"
+        /**
+         * Outer class
+         */
+        public class OuterClass {
+    "#};
+    assert_eq!(
+        outer_class_chunk.declaration.trim(),
+        expected_outer_declaration.trim()
+    );
+
+    let expected_outer_content = indent_string(
+        indoc! {r#"
+        private String outerField;
+    "#},
+        4,
+    );
+    assert_eq!(
+        outer_class_chunk.content.trim(),
+        expected_outer_content.trim()
+    );
+
+    // Second chunk: InnerClass
+    let inner_class_chunk = &chunks[1];
+    assert_eq!(inner_class_chunk.chunk_type, ChunkType::Class);
+    assert_eq!(inner_class_chunk.name, "InnerClass");
+
+    // Inner class declaration should include compact outer class context
+    let expected_inner_declaration = format!(
+        "public class OuterClass {{\n{}",
+        indent_string(
+            indoc! {r#"
+            /**
+             * Inner class
+             */
+            public static class InnerClass {
+        "#},
+            4
+        )
+    );
+    assert_eq!(
+        inner_class_chunk.declaration.trim(),
+        expected_inner_declaration.trim()
+    );
+
+    let expected_inner_content = indent_string(
+        indoc! {r#"
+        /** Inner field */
+        private int innerField;
+    "#},
+        8,
+    );
+    assert_eq!(
+        inner_class_chunk.content.trim(),
+        expected_inner_content.trim()
+    );
+
+    // Third and fourth chunks: methods
+    let inner_method = &chunks[2];
+    assert_eq!(inner_method.chunk_type, ChunkType::Method);
+    assert_eq!(inner_method.name, "innerMethod");
+
+    let outer_method = &chunks[3];
+    assert_eq!(outer_method.chunk_type, ChunkType::Method);
+    assert_eq!(outer_method.name, "outerMethod");
+}
+
+#[test]
+fn test_java_interface_declaration_chunking() {
+    let java_code = indoc! {r#"
+        package com.example.service;
+
+        /**
+         * Service interface for user operations
+         */
+        public interface UserService {
+            
+            /**
+             * Retrieves a user by their ID
+             * @param userId the unique identifier for the user
+             * @return the user object if found, null otherwise
+             */
+            User getUserById(String userId);
+            
+            /**
+             * Creates a new user account
+             */
+            User createUser(String username, String email);
+        }
+    "#};
+
+    let mut processor = JavaProcessor::new().expect("Failed to create JavaProcessor");
+    let chunks = processor
+        .chunk_code(java_code)
+        .expect("Failed to chunk Java code");
+
+    // Should extract: 1 interface + 2 methods = 3 total
+    assert_eq!(
+        chunks.len(),
+        3,
+        "Should extract exactly 3 chunks but got {}. Extracted chunks: {:?}",
+        chunks.len(),
+        chunks
+            .iter()
+            .map(|c| format!("{:?} - {}", c.chunk_type, c.name))
+            .collect::<Vec<_>>()
+    );
+
+    // First chunk should be the Interface chunk (stored as Class type)
+    let interface_chunk = &chunks[0];
+    assert_eq!(interface_chunk.chunk_type, ChunkType::Class);
+    assert_eq!(interface_chunk.name, "UserService");
+
+    let expected_interface_declaration = indoc! {r#"
+        /**
+         * Service interface for user operations
+         */
+        public interface UserService {
+    "#};
+    assert_eq!(
+        interface_chunk.declaration.trim(),
+        expected_interface_declaration.trim()
+    );
+
+    // Interface content should be empty (interfaces don't have fields, only method signatures)
+    assert_eq!(interface_chunk.content.trim(), "");
+
+    // Remaining chunks should be methods
+    assert_eq!(chunks[1].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[1].name, "getUserById");
+    assert_eq!(chunks[2].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[2].name, "createUser");
+}
+
+#[test]
+fn test_java_record_declaration_chunking() {
+    let java_code = indoc! {r#"
+        package com.example.model;
+
+        import java.time.LocalDate;
+
+        /**
+         * A record representing a person with basic information
+         */
+        public record Person(String name, int age, String email) {
+            
+            /**
+             * Creates a person with default values
+             */
+            public static Person withDefaults(String name) {
+                return new Person(name, 0, "unknown@example.com");
+            }
+            
+            /**
+             * Instance method to check if person is an adult
+             */
+            public boolean isAdult() {
+                return age >= 18;
+            }
+        }
+    "#};
+
+    let mut processor = JavaProcessor::new().expect("Failed to create JavaProcessor");
+    let chunks = processor
+        .chunk_code(java_code)
+        .expect("Failed to chunk Java code");
+
+    // Should extract: 1 record + 2 methods = 3 chunks
+    assert_eq!(
+        chunks.len(),
+        3,
+        "Should extract exactly 3 chunks (1 record + 2 methods) but got {}. Extracted chunks: {:?}",
+        chunks.len(),
+        chunks
+            .iter()
+            .map(|c| format!("{:?} - {}", c.chunk_type, c.name))
+            .collect::<Vec<_>>()
+    );
+
+    // First chunk should be the Record (stored as Class type)
+    let record_chunk = &chunks[0];
+    assert_eq!(record_chunk.chunk_type, ChunkType::Class);
+    assert_eq!(record_chunk.name, "Person");
+
+    // Record declaration should include javadoc and full record header with parameters
+    let expected_record_declaration = indoc! {r#"
+        /**
+         * A record representing a person with basic information
+         */
+        public record Person(String name, int age, String email) {
+    "#};
+    assert_eq!(
+        record_chunk.declaration.trim(),
+        expected_record_declaration.trim()
+    );
+
+    // Record content should be empty since records don't have fields in the body
+    // (the parameters in the record declaration ARE the fields)
+    assert_eq!(record_chunk.content.trim(), "");
+
+    // Remaining chunks should be methods
+    assert_eq!(chunks[1].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[1].name, "withDefaults");
+    assert_eq!(chunks[2].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[2].name, "isAdult");
 }
