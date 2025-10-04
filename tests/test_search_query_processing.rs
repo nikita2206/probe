@@ -48,7 +48,7 @@ public class DataProcessor {
         .for_each(drop);
 
     // Test search with Tantivy's snippet generation
-    let search_results = index.search("archive lc", 10, None).unwrap();
+    let search_results = index.search("archive lc", 10, None, 3).unwrap();
     println!("Search results count: {}", search_results.len());
 
     assert!(
@@ -73,7 +73,7 @@ public class DataProcessor {
     println!("\n--- Testing query variations ---");
     for query in &["archive lc", "archiveLocalCache", "Creating archive"] {
         println!("Query: '{query}'");
-        let results = index.search(query, 5, None).unwrap();
+        let results = index.search(query, 5, None, 3).unwrap();
         println!("  Results found: {}", results.len());
         for result in results {
             println!("    Snippet: '{}'", result.snippet);
@@ -100,7 +100,7 @@ fn test_tantivy_query_parsing() {
         "archive OR lc",
     ] {
         println!("Testing query: {query}");
-        let results = index.search(query, 5, None).unwrap();
+        let results = index.search(query, 5, None, 3).unwrap();
         println!("  Results: {}", results.len());
         for result in results {
             println!("    Snippet: '{}'", result.snippet);

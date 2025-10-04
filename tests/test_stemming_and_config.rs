@@ -35,7 +35,7 @@ stemming:
         ..Default::default()
     };
     let results = engine
-        .search_with_reranker("carrier", Some(10), None, reranker_config.clone())
+        .search_with_reranker("carrier", Some(10), None, reranker_config.clone(), 3)
         .unwrap();
     assert!(
         !results.is_empty(),
@@ -45,7 +45,7 @@ stemming:
 
     // Test that singular form matches plural for 'runner'
     let results = engine
-        .search_with_reranker("runner", Some(10), None, reranker_config)
+        .search_with_reranker("runner", Some(10), None, reranker_config, 3)
         .unwrap();
     assert!(
         !results.is_empty(),
@@ -89,7 +89,7 @@ stemming:
         ..Default::default()
     };
     let results = engine
-        .search_with_reranker("carrier", Some(10), None, reranker_config.clone())
+        .search_with_reranker("carrier", Some(10), None, reranker_config.clone(), 3)
         .unwrap();
     assert!(
         results.is_empty(),
@@ -98,7 +98,7 @@ stemming:
 
     // But exact matches should still work
     let results = engine
-        .search_with_reranker("carriers", Some(10), None, reranker_config)
+        .search_with_reranker("carriers", Some(10), None, reranker_config, 3)
         .unwrap();
     assert!(!results.is_empty(), "Should find exact match 'carriers'");
 

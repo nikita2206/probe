@@ -216,15 +216,16 @@ impl SearchIndex {
                         Err(_) => return, // Skip files we can't read as text
                     };
 
-                    // Skip files with lines longer than 8096 bytes
+                    // Skip files larger than 512KB or with lines longer than 8096 bytes
+                    const MAX_FILE_SIZE: usize = 512 * 1024; // 512KB
                     const MAX_LINE_LENGTH: usize = 8096;
+
+                    if content.len() > MAX_FILE_SIZE {
+                        return; // Skip large files silently
+                    }
+
                     if content.lines().any(|line| line.len() > MAX_LINE_LENGTH) {
-                        eprintln!(
-                            "Skipping {}: contains line(s) longer than {} bytes",
-                            file_path.display(),
-                            MAX_LINE_LENGTH
-                        );
-                        return;
+                        return; // Skip files with very long lines silently
                     }
                     let extension = file_path
                         .extension()
@@ -288,6 +289,7 @@ impl SearchIndex {
         query_str: &str,
         limit: usize,
         filetype: Option<&str>,
+        context_lines: usize,
     ) -> Result<Vec<SearchResult>> {
         let reader = self.index.reader_builder().try_into()?;
 
@@ -397,7 +399,7 @@ impl SearchIndex {
                 self.extract_relevant_segment_with_context(
                     body_content,
                     &snippet_generator,
-                    3, // Number of context lines before and after
+                    context_lines,
                 )?
             } else {
                 // For other chunk types, use the default snippet behavior

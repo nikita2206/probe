@@ -49,6 +49,14 @@ struct Cli {
     )]
     config_path: Option<PathBuf>,
 
+    #[arg(
+        short = 'C',
+        long = "context",
+        help = "Number of context lines to show before and after matches",
+        default_value = "3"
+    )]
+    context_lines: usize,
+
     #[arg(help = "Search query")]
     query: Option<String>,
 }
@@ -139,6 +147,7 @@ fn main() -> Result<()> {
                     Some(cli.num_results),
                     cli.filetype.as_deref(),
                     reranker_config,
+                    cli.context_lines,
                 )?;
 
                 if results.is_empty() {
