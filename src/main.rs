@@ -49,9 +49,6 @@ struct Cli {
     )]
     config_path: Option<PathBuf>,
 
-    #[arg(short = 'v', long = "verbose", help = "Enable verbose logging")]
-    verbose: bool,
-
     #[arg(help = "Search query")]
     query: Option<String>,
 }
@@ -79,7 +76,7 @@ fn main() -> Result<()> {
     match cli.command {
         Some(Commands::Rebuild) => {
             let engine = SearchEngine::new(&root_dir)?;
-            engine.rebuild_index(cli.verbose)?;
+            engine.rebuild_index()?;
         }
         Some(Commands::Stats) => {
             let engine = SearchEngine::new(&root_dir)?;
@@ -136,7 +133,7 @@ fn main() -> Result<()> {
                 };
 
                 let engine = SearchEngine::new(&root_dir)?;
-                engine.ensure_index_updated(cli.verbose)?;
+                engine.ensure_index_updated()?;
                 let results = engine.search_with_reranker(
                     &query,
                     Some(cli.num_results),

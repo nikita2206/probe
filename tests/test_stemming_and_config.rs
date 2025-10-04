@@ -27,7 +27,7 @@ stemming:
 
     // Create search engine and rebuild index
     let engine = SearchEngine::new(temp_dir.path()).unwrap();
-    engine.rebuild_index(false).unwrap();
+    engine.rebuild_index().unwrap();
 
     // Test that singular form matches plural
     let reranker_config = RerankerConfig {
@@ -81,7 +81,7 @@ stemming:
 
     // Create search engine and rebuild index
     let engine = SearchEngine::new(temp_dir.path()).unwrap();
-    engine.rebuild_index(false).unwrap();
+    engine.rebuild_index().unwrap();
 
     // Test that singular form does NOT match plural when stemming is disabled
     let reranker_config = RerankerConfig {
