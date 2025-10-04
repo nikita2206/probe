@@ -55,14 +55,26 @@ impl JavaProcessor {
         match node.kind() {
             "class_declaration" | "interface_declaration" | "record_declaration" => {
                 let container_name = self.get_container_name(node, content);
+
+                // Create a Class chunk for this class/interface/record declaration
+                let (declaration, class_content) = self.extract_class_chunk(node, content, stack);
+                chunks.push(CodeChunk {
+                    start_line: node.start_position().row,
+                    end_line: node.end_position().row,
+                    chunk_type: ChunkType::Class,
+                    name: container_name.clone(),
+                    content: class_content,
+                    declaration,
+                });
+
                 stack.push((node, container_name));
 
-                // Process children
+                // Process children (to collect method chunks)
                 self.traverse_children(node, content, stack, chunks);
 
                 stack.pop();
             }
-            "method_declaration" => {
+            "method_declaration" | "constructor_declaration" => {
                 // Skip lambdas/anonymous methods that don't have identifiable names
                 if let Some(method_name) = self.get_method_name(node, content) {
                     let (declaration, body) =
@@ -106,6 +118,178 @@ impl JavaProcessor {
             }
         }
         None
+    }
+
+    /// Extracts a class chunk with its context from enclosing classes.
+    /// Returns (declaration, content) where:
+    /// - declaration includes: enclosing classes (compact), class javadoc, class header
+    /// - content includes: all fields with their javadocs (but without initializers)
+    fn extract_class_chunk(
+        &self,
+        class_node: Node,
+        content: &str,
+        stack: &[(Node, String)],
+    ) -> (String, String) {
+        let mut declaration = String::new();
+
+        // Build the context from enclosing classes (compact form - just declarations)
+        for (i, (container_node, _container_name)) in stack.iter().enumerate() {
+            if i > 0 {
+                declaration.push('\n');
+            }
+
+            // For enclosing classes, just include the compact declaration
+            let compact_decl = self.extract_class_header_only(*container_node, content);
+            declaration.push_str(&compact_decl);
+        }
+
+        // Add the current class with javadoc and full declaration
+        let (_class_start, start_node) = self.find_container_start_with_comments(class_node);
+        let class_body_start = self.find_container_body_start(class_node);
+
+        if let Some(body_start) = class_body_start {
+            // Get line start index to include indentation
+            let line_start_index = self.get_line_start_index(start_node);
+            let class_header_with_indent = &content[line_start_index..body_start + 1];
+            declaration.push_str(class_header_with_indent);
+        }
+
+        // Extract all fields with their javadocs (but without initializers)
+        let class_content = self.extract_fields_with_javadocs(class_node, content);
+
+        (declaration.trim_end().to_string(), class_content)
+    }
+
+    /// Extracts just the class header line in compact form (no javadoc, just the declaration line)
+    fn extract_class_header_only(&self, class_node: Node, content: &str) -> String {
+        let class_body_start = self.find_container_body_start(class_node);
+
+        if let Some(body_start) = class_body_start {
+            let line_start_index = self.get_line_start_index(class_node);
+            let class_header = &content[line_start_index..body_start + 1];
+            class_header.to_string()
+        } else {
+            // Fallback: extract entire node text
+            class_node
+                .utf8_text(content.as_bytes())
+                .unwrap_or("")
+                .to_string()
+        }
+    }
+
+    /// Extracts all fields from a class with their javadocs but without initializers
+    fn extract_fields_with_javadocs(&self, class_node: Node, content: &str) -> String {
+        let mut fields = Vec::new();
+        let mut cursor = class_node.walk();
+
+        // Find the class body
+        if let Some(body_node) = utils::find_child_node(
+            &mut cursor,
+            &["class_body", "interface_body", "record_body"],
+        ) {
+            // Traverse children of the body to find field declarations
+            let mut body_cursor = body_node.walk();
+            if body_cursor.goto_first_child() {
+                loop {
+                    let child = body_cursor.node();
+                    if child.kind() == "field_declaration" {
+                        let field_text = self.extract_field_with_javadoc(child, content);
+                        fields.push(field_text);
+                    }
+                    if !body_cursor.goto_next_sibling() {
+                        break;
+                    }
+                }
+            }
+        }
+
+        fields.join("\n")
+    }
+
+    /// Extracts a single field with its javadoc, removing the initializer
+    fn extract_field_with_javadoc(&self, field_node: Node, content: &str) -> String {
+        let mut result = String::new();
+
+        // Look for preceding javadoc/comment
+        let mut current = field_node;
+        let mut comments = Vec::new();
+        while let Some(prev) = current.prev_sibling() {
+            match prev.kind() {
+                "comment" | "block_comment" | "line_comment" => {
+                    let line_start = self.get_line_start_index(prev);
+                    let comment_text = &content[line_start..prev.end_byte()];
+                    comments.push(comment_text.to_string());
+                    current = prev;
+                }
+                _ => break,
+            }
+        }
+
+        // Add comments in correct order (they were collected in reverse)
+        for comment in comments.iter().rev() {
+            result.push_str(comment);
+            result.push('\n');
+        }
+
+        // Extract field declaration without initializer
+        let field_text = self.extract_field_declaration_without_initializer(field_node, content);
+        result.push_str(&field_text);
+
+        result
+    }
+
+    /// Extracts the field declaration without its initializer
+    fn extract_field_declaration_without_initializer(
+        &self,
+        field_node: Node,
+        content: &str,
+    ) -> String {
+        let line_start = self.get_line_start_index(field_node);
+        let field_end = field_node.end_byte();
+
+        let field_text = &content[line_start..field_end];
+
+        // Look for variable declarators to find where the initializer starts
+        let mut cursor = field_node.walk();
+        let mut declarations = Vec::new();
+
+        if cursor.goto_first_child() {
+            loop {
+                let child = cursor.node();
+                if child.kind() == "variable_declarator" {
+                    // Find the '=' sign and remove everything after it
+                    let decl_start = child.start_byte();
+                    let decl_end = child.end_byte();
+                    let decl_text = &content[decl_start..decl_end];
+
+                    if let Some(eq_pos) = decl_text.find('=') {
+                        // Keep only the part before '='
+                        let without_init = &decl_text[..eq_pos].trim_end();
+                        declarations.push((decl_start - line_start, without_init.to_string()));
+                    }
+                }
+                if !cursor.goto_next_sibling() {
+                    break;
+                }
+            }
+        }
+
+        // If we found any declarations with initializers, reconstruct the field
+        if !declarations.is_empty() {
+            // Find where the first declarator starts and keep everything before it
+            let mut result = field_text.to_string();
+            for (offset, decl_without_init) in declarations.iter().rev() {
+                // Find the declarator in the original text and replace it
+                let declarator_start = *offset;
+                if let Some(semicolon_pos) = result[declarator_start..].find(';') {
+                    let declarator_end = declarator_start + semicolon_pos;
+                    result.replace_range(declarator_start..declarator_end, decl_without_init);
+                }
+            }
+            result
+        } else {
+            field_text.to_string()
+        }
     }
 
     /// Extracts the method with its full context from nested classes/interfaces

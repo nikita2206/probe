@@ -331,14 +331,15 @@ impl SearchIndex {
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
-            // Apply path-based score penalties
-            let adjusted_score = Self::apply_path_penalties(score, path_text);
-
-            // Extract chunk metadata
+            // Extract chunk metadata first
             let chunk_type = retrieved_doc
                 .get_first(self.chunk_type_field)
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string());
+
+            // Apply path-based and chunk-type score penalties
+            let adjusted_score =
+                Self::apply_score_penalties(score, path_text, chunk_type.as_deref());
 
             let chunk_name = retrieved_doc
                 .get_first(self.chunk_name_field)
@@ -407,12 +408,21 @@ impl SearchIndex {
         Ok(results)
     }
 
-    fn apply_path_penalties(score: f32, path: &str) -> f32 {
+    fn apply_score_penalties(score: f32, path: &str, chunk_type: Option<&str>) -> f32 {
         let mut adjusted_score = score;
 
         // Apply penalty for test files - reduce score by 50% if path contains "test"
         if path.to_lowercase().contains("test") {
             adjusted_score *= 0.5;
+        }
+
+        // Apply penalty for Class chunks - down-rank them compared to Method chunks
+        // Classes get 60% of their original score to prioritize methods in search results
+        if matches!(
+            chunk_type,
+            Some("Class") | Some("Interface") | Some("Struct")
+        ) {
+            adjusted_score *= 0.6;
         }
 
         adjusted_score
