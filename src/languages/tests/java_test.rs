@@ -493,3 +493,77 @@ fn test_java_interface_declaration_chunking() {
     assert_eq!(chunks[2].chunk_type, ChunkType::Method);
     assert_eq!(chunks[2].name, "createUser");
 }
+
+#[test]
+fn test_java_record_declaration_chunking() {
+    let java_code = indoc! {r#"
+        package com.example.model;
+
+        import java.time.LocalDate;
+
+        /**
+         * A record representing a person with basic information
+         */
+        public record Person(String name, int age, String email) {
+            
+            /**
+             * Creates a person with default values
+             */
+            public static Person withDefaults(String name) {
+                return new Person(name, 0, "unknown@example.com");
+            }
+            
+            /**
+             * Instance method to check if person is an adult
+             */
+            public boolean isAdult() {
+                return age >= 18;
+            }
+        }
+    "#};
+
+    let mut processor = JavaProcessor::new().expect("Failed to create JavaProcessor");
+    let chunks = processor
+        .chunk_code(java_code)
+        .expect("Failed to chunk Java code");
+
+    // Should extract: 1 record + 2 methods = 3 chunks
+    assert_eq!(
+        chunks.len(),
+        3,
+        "Should extract exactly 3 chunks (1 record + 2 methods) but got {}. Extracted chunks: {:?}",
+        chunks.len(),
+        chunks
+            .iter()
+            .map(|c| format!("{:?} - {}", c.chunk_type, c.name))
+            .collect::<Vec<_>>()
+    );
+
+    // First chunk should be the Record (stored as Class type)
+    let record_chunk = &chunks[0];
+    assert_eq!(record_chunk.chunk_type, ChunkType::Class);
+    assert_eq!(record_chunk.name, "Person");
+
+    // Record declaration should include javadoc and full record header with parameters
+    assert!(
+        record_chunk
+            .declaration
+            .contains("A record representing a person"),
+        "Record declaration should include record javadoc"
+    );
+    assert!(
+        record_chunk
+            .declaration
+            .contains("public record Person(String name, int age, String email) {"),
+        "Record declaration should include record header with all parameters"
+    );
+
+    // Record content should be empty or minimal since records don't typically have fields
+    // (the parameters in the record declaration ARE the fields)
+
+    // Remaining chunks should be methods
+    assert_eq!(chunks[1].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[1].name, "withDefaults");
+    assert_eq!(chunks[2].chunk_type, ChunkType::Method);
+    assert_eq!(chunks[2].name, "isAdult");
+}
