@@ -104,6 +104,7 @@ impl SearchEngine {
         limit: Option<usize>,
         filetype: Option<&str>,
         reranker_config: RerankerConfig,
+        context_lines: usize,
     ) -> Result<Vec<SearchResult>> {
         let language = self.config.get_language()?;
         let mut index = SearchIndex::open(&self.index_dir, language, self.config.stemming.enabled)?;
@@ -118,7 +119,7 @@ impl SearchEngine {
         };
 
         // Get initial results from Tantivy
-        let mut results = index.search(query, fetch_limit, filetype)?;
+        let mut results = index.search(query, fetch_limit, filetype, context_lines)?;
 
         // Apply reranking if enabled and we have enough results
         if reranker_config.enabled && results.len() >= 2 {
