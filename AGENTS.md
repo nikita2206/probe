@@ -1,8 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code and other coding agents working in this repository.
-
-`AGENTS.md` is the canonical version of these instructions. Keep both files in sync.
+This file provides guidance to coding agents working in this repository.
 
 ## Project Overview
 
