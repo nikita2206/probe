@@ -48,6 +48,10 @@ fn copy_gitignore_test_data_to_temp() -> TempDir {
     temp_dir
 }
 
+fn count_occurrences(haystack: &str, needle: &str) -> usize {
+    haystack.matches(needle).count()
+}
+
 #[test]
 fn test_basic_search() {
     let temp_dir = copy_test_data_to_temp();
@@ -384,4 +388,36 @@ fn test_filetype_filtering_markdown() {
         .assert()
         .success()
         .stdout(predicate::str::contains("README.md"));
+}
+
+#[test]
+fn test_reindexing_same_project_via_absolute_and_dot_paths_does_not_duplicate_results() {
+    let temp_dir = copy_test_data_to_temp();
+    let project_path = temp_dir.path();
+
+    Command::cargo_bin(env!("CARGO_PKG_NAME"))
+        .unwrap()
+        .args(["-d", project_path.to_str().unwrap(), "rebuild"])
+        .assert()
+        .success();
+
+    let output = Command::cargo_bin(env!("CARGO_PKG_NAME"))
+        .unwrap()
+        .current_dir(project_path)
+        .args(["-n", "10", "database_url"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8(output.get_output().stdout.clone()).unwrap();
+
+    assert_eq!(
+        count_occurrences(&stdout, "config.json"),
+        1,
+        "Expected exactly one rendered result for config.json after switching from absolute root to '.' root.\nOutput:\n{stdout}"
+    );
+
+    assert!(
+        !stdout.contains(project_path.to_str().unwrap()),
+        "Expected rendered paths to be stored relative to the project root.\nOutput:\n{stdout}"
+    );
 }

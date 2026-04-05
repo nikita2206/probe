@@ -31,10 +31,15 @@ impl SearchEngine {
 
     pub fn ensure_index_updated(&self) -> Result<()> {
         let scanner = FileScanner::new(&self.root_dir);
-        let files_iter = scanner.iter_files();
+        let files_iter = scanner.iter_indexed_files();
         let files: Vec<_> = files_iter.collect::<Vec<_>>();
 
-        let mut metadata = IndexMetadata::load(&self.metadata_path)?;
+        let metadata = IndexMetadata::load(&self.metadata_path)?;
+        if metadata.needs_relative_path_migration() {
+            return self.rebuild_index();
+        }
+
+        let mut metadata = metadata;
         let changed_files = metadata.needs_reindex(&files)?;
 
         if !changed_files.is_empty() {
@@ -77,7 +82,7 @@ impl SearchEngine {
         }
 
         let scanner = FileScanner::new(&self.root_dir);
-        let files_iter = scanner.iter_files();
+        let files_iter = scanner.iter_indexed_files();
 
         let language = self.config.get_language()?;
         let mut index = SearchIndex::new(&self.index_dir, language, self.config.stemming.enabled)?;
@@ -195,7 +200,7 @@ impl SearchEngine {
 
         if status {
             let scanner = FileScanner::new(&self.root_dir);
-            let files: Vec<_> = scanner.iter_files().collect();
+            let files: Vec<_> = scanner.iter_indexed_files().collect();
             let changed_files = metadata.needs_reindex(&files)?;
 
             if changed_files.is_empty() {
@@ -203,7 +208,7 @@ impl SearchEngine {
             } else {
                 println!("Files to be indexed:");
                 for file in changed_files {
-                    println!("{}", file.display());
+                    println!("{}", file.relative_path.display());
                 }
             }
         }

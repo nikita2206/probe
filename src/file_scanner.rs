@@ -1,6 +1,12 @@
 use anyhow::Result;
 use ignore::WalkBuilder;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexedFile {
+    pub disk_path: PathBuf,
+    pub relative_path: PathBuf,
+}
 
 pub struct FileScanner {
     root_dir: PathBuf,
@@ -78,6 +84,20 @@ impl FileScanner {
         })
     }
 
+    pub fn iter_indexed_files(&self) -> impl Iterator<Item = IndexedFile> + '_ {
+        self.iter_files().filter_map(|disk_path| {
+            let relative_path = disk_path
+                .strip_prefix(&self.root_dir)
+                .ok()
+                .map(Self::normalize_relative_path)?;
+
+            Some(IndexedFile {
+                disk_path,
+                relative_path,
+            })
+        })
+    }
+
     fn should_index_file(&self, path: &Path) -> bool {
         // Skip binary files and very large files
         if let Some(ext) = path.extension() {
@@ -114,5 +134,14 @@ impl FileScanner {
         }
 
         true
+    }
+
+    fn normalize_relative_path(path: &Path) -> PathBuf {
+        path.components()
+            .filter(|component| !matches!(component, Component::CurDir))
+            .fold(PathBuf::new(), |mut normalized, component| {
+                normalized.push(component.as_os_str());
+                normalized
+            })
     }
 }

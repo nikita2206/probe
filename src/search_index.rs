@@ -1,4 +1,5 @@
 use crate::code_chunker::CodeChunker;
+use crate::file_scanner::IndexedFile;
 use anyhow::Result;
 use atty::Stream;
 use std::fs;
@@ -166,9 +167,9 @@ impl SearchIndex {
         &mut self,
         files: I,
         num_threads: usize,
-    ) -> Result<impl Iterator<Item = PathBuf>>
+    ) -> Result<impl Iterator<Item = IndexedFile>>
     where
-        I: IntoIterator<Item = PathBuf>,
+        I: IntoIterator<Item = IndexedFile>,
     {
         use rayon::ThreadPoolBuilder;
         use std::sync::mpsc;
@@ -192,7 +193,7 @@ impl SearchIndex {
 
         rayon::scope(|s| {
             // Spawn worker threads to process files
-            for file_path in &files_vec {
+            for indexed_file in &files_vec {
                 let doc_tx = doc_tx.clone();
                 let path_tx = path_tx.clone();
                 let path_field = self.path_field;
@@ -203,7 +204,7 @@ impl SearchIndex {
                 let chunk_name_field = self.chunk_name_field;
                 let start_line_field = self.start_line_field;
                 let end_line_field = self.end_line_field;
-                let file_path = file_path.clone();
+                let indexed_file = indexed_file.clone();
                 s.spawn(move |_| {
                     // Create a new CodeChunker instance for this thread
                     let mut code_chunker = match CodeChunker::new() {
@@ -211,7 +212,7 @@ impl SearchIndex {
                         Err(_) => return,
                     };
 
-                    let content = match fs::read_to_string(&file_path) {
+                    let content = match fs::read_to_string(&indexed_file.disk_path) {
                         Ok(content) => content,
                         Err(_) => return, // Skip files we can't read as text
                     };
@@ -227,21 +228,27 @@ impl SearchIndex {
                     if content.lines().any(|line| line.len() > MAX_LINE_LENGTH) {
                         return; // Skip files with very long lines silently
                     }
-                    let extension = file_path
+                    let extension = indexed_file
+                        .relative_path
                         .extension()
                         .and_then(|ext| ext.to_str())
                         .unwrap_or("");
-                    let chunks = match code_chunker.chunk_code_for_indexing(&file_path, &content) {
+                    let chunks = match code_chunker
+                        .chunk_code_for_indexing(&indexed_file.relative_path, &content)
+                    {
                         Ok(chunks) => chunks,
                         Err(_) => return,
                     };
 
                     // Send the file path to the caller
-                    let _ = path_tx.send(file_path.clone());
+                    let _ = path_tx.send(indexed_file.clone());
 
                     if chunks.is_empty() {
                         let mut doc = tantivy::TantivyDocument::new();
-                        doc.add_text(path_field, file_path.to_string_lossy().as_ref());
+                        doc.add_text(
+                            path_field,
+                            indexed_file.relative_path.to_string_lossy().as_ref(),
+                        );
                         doc.add_text(declaration_field, "");
                         doc.add_text(body_field, &content);
                         doc.add_text(filetype_field, extension);
@@ -256,7 +263,10 @@ impl SearchIndex {
                     } else {
                         for chunk in chunks {
                             let mut doc = tantivy::TantivyDocument::new();
-                            doc.add_text(path_field, file_path.to_string_lossy().as_ref());
+                            doc.add_text(
+                                path_field,
+                                indexed_file.relative_path.to_string_lossy().as_ref(),
+                            );
                             doc.add_text(declaration_field, &chunk.declaration);
                             doc.add_text(body_field, &chunk.content);
                             doc.add_text(filetype_field, extension);
