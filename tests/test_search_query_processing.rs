@@ -1,4 +1,4 @@
-use probe::search_index::SearchIndex;
+use probe::{search_index::SearchIndex, IndexedFile};
 use std::fs;
 use tantivy::tokenizer::Language;
 use tempfile::TempDir;
@@ -43,7 +43,13 @@ public class DataProcessor {
 
     // Index the file
     index
-        .index_files([test_file.clone()], 1)
+        .index_files(
+            [IndexedFile {
+                disk_path: test_file.clone(),
+                relative_path: "test_file.java".into(),
+            }],
+            1,
+        )
         .unwrap()
         .for_each(drop);
 
@@ -90,7 +96,16 @@ fn test_tantivy_query_parsing() {
     let content = "This function handles archive local cache operations";
     let test_file = temp_dir.path().join("test.java");
     fs::write(&test_file, content).unwrap();
-    index.index_files([test_file], 1).unwrap().for_each(drop);
+    index
+        .index_files(
+            [IndexedFile {
+                disk_path: test_file,
+                relative_path: "test.java".into(),
+            }],
+            1,
+        )
+        .unwrap()
+        .for_each(drop);
 
     // Test how tantivy parses different queries
     for query in &[

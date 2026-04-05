@@ -10,7 +10,7 @@ pub mod search_index;
 
 pub use code_chunker::CodeChunker;
 pub use config::Config;
-pub use file_scanner::FileScanner;
+pub use file_scanner::{FileScanner, IndexedFile};
 pub use language_processor::{ChunkType, CodeChunk};
 pub use reranker::{available_models, parse_reranker_model, ProbeConfig, Reranker, RerankerConfig};
 pub use search_engine::SearchEngine;
@@ -51,7 +51,12 @@ mod tests {
         fs::write(&test_file, "test content").unwrap();
 
         let mut metadata = metadata::IndexMetadata::new();
-        metadata.update_file(&test_file).unwrap();
+        metadata
+            .update_file(&file_scanner::IndexedFile {
+                disk_path: test_file.clone(),
+                relative_path: "test.txt".into(),
+            })
+            .unwrap();
         metadata.save(&metadata_file).unwrap();
 
         let loaded_metadata = metadata::IndexMetadata::load(&metadata_file).unwrap();

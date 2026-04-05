@@ -1,8 +1,9 @@
+use crate::file_scanner::IndexedFile;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::time::SystemTime;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -38,7 +39,7 @@ impl IndexMetadata {
         Ok(())
     }
 
-    pub fn needs_reindex(&self, files: &[PathBuf]) -> Result<Vec<PathBuf>> {
+    pub fn needs_reindex(&self, files: &[IndexedFile]) -> Result<Vec<IndexedFile>> {
         let mut changed_files = Vec::new();
 
         for file in files {
@@ -50,33 +51,39 @@ impl IndexMetadata {
         Ok(changed_files)
     }
 
-    pub fn update_file(&mut self, path: &Path) -> Result<()> {
-        let metadata = match fs::metadata(path) {
+    pub fn update_file(&mut self, file: &IndexedFile) -> Result<()> {
+        let metadata = match fs::metadata(&file.disk_path) {
             Ok(meta) => meta,
             Err(_) => return Ok(()), // Skip files that no longer exist
         };
 
         let file_info = FileInfo {
-            path: path.to_path_buf(),
+            path: file.relative_path.clone(),
             size: metadata.len(),
             modified: metadata.modified()?,
         };
 
-        self.files.insert(path.to_path_buf(), file_info);
+        self.files.insert(file.relative_path.clone(), file_info);
         Ok(())
     }
 
-    fn file_changed(&self, path: &Path) -> Result<bool> {
-        let current_metadata = match fs::metadata(path) {
+    fn file_changed(&self, file: &IndexedFile) -> Result<bool> {
+        let current_metadata = match fs::metadata(&file.disk_path) {
             Ok(meta) => meta,
             Err(_) => return Ok(true), // File doesn't exist, consider it changed
         };
 
-        match self.files.get(path) {
+        match self.files.get(&file.relative_path) {
             Some(cached_info) => Ok(cached_info.size != current_metadata.len()
                 || cached_info.modified != current_metadata.modified()?),
             None => Ok(true), // File not in cache, needs indexing
         }
+    }
+
+    pub fn needs_relative_path_migration(&self) -> bool {
+        self.files.keys().any(|path| {
+            path.is_absolute() || matches!(path.components().next(), Some(Component::CurDir))
+        })
     }
 
     pub fn file_count(&self) -> usize {
