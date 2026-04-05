@@ -26,3 +26,5 @@ Thumbs.db
 # FastEmbed cache (now stored in system cache dir, but in case of local override)
 .fastembed_cache/
 .aider*
+benchmark-results/
+scripts/__pycache__/
