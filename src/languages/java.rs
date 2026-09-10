@@ -9,10 +9,9 @@ pub struct JavaProcessor {
 
 impl JavaProcessor {
     pub fn new() -> Result<Self> {
-        let language = tree_sitter_java::language();
         let mut parser = Parser::new();
         parser
-            .set_language(language)
+            .set_language(&tree_sitter_java::LANGUAGE.into())
             .context("Failed to set Java language")?;
 
         Ok(Self { parser })

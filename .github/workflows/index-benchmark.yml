@@ -117,8 +117,10 @@ jobs:
             core.info(`Using baseline run ${baselineRun.id} on ${baselineRun.head_branch}`);
             core.setOutput('run_id', String(baselineRun.id));
 
+      # Artifacts expire (90 days); the render step treats a missing baseline as unavailable.
       - name: Download base branch benchmark artifact
         if: steps.find-baseline.outputs.run_id != ''
+        continue-on-error: true
         uses: actions/download-artifact@v4
         with:
           name: ${{ env.BENCHMARK_ARTIFACT_NAME }}

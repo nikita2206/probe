@@ -8,8 +8,9 @@ use tantivy::{
     collector::TopDocs,
     query::{BooleanQuery, Occur, QueryParser, TermQuery},
     schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, Value, STORED, TEXT},
+    snippet::{Snippet, SnippetGenerator},
     tokenizer::{Language, LowerCaser, RegexTokenizer, RemoveLongFilter, Stemmer, TextAnalyzer},
-    Index, IndexWriter, Snippet, SnippetGenerator, TantivyDocument, Term,
+    Index, IndexWriter, TantivyDocument, Term,
 };
 
 pub struct SearchIndex {

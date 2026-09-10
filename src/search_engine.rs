@@ -54,7 +54,7 @@ impl SearchEngine {
                     }
                 };
 
-            let indexed_files = index.index_files(changed_files.into_iter(), 8)?;
+            let indexed_files = index.index_files(changed_files, 8)?;
 
             // Update metadata for indexed files
             for file in indexed_files {
