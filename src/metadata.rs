@@ -25,13 +25,18 @@ impl IndexMetadata {
 
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self> {
         match fs::read(&path) {
-            Ok(data) => Ok(bincode::deserialize(&data)?),
+            Ok(data) => {
+                // Keep bincode 1's default encoding so existing metadata.bin files still load.
+                let (metadata, _) =
+                    bincode::serde::decode_from_slice(&data, bincode::config::legacy())?;
+                Ok(metadata)
+            }
             Err(_) => Ok(Self::new()), // Return empty metadata if file doesn't exist
         }
     }
 
     pub fn save<P: AsRef<Path>>(&self, path: P) -> Result<()> {
-        let data = bincode::serialize(self)?;
+        let data = bincode::serde::encode_to_vec(self, bincode::config::legacy())?;
         if let Some(parent) = path.as_ref().parent() {
             fs::create_dir_all(parent)?;
         }

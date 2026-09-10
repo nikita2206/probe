@@ -62,4 +62,31 @@ mod tests {
         let loaded_metadata = metadata::IndexMetadata::load(&metadata_file).unwrap();
         assert_eq!(loaded_metadata.file_count(), 1);
     }
+
+    #[test]
+    fn test_metadata_loads_bincode1_legacy_bytes() {
+        // Bytes produced by bincode 1's default `serialize` for IndexMetadata
+        // with one "test.txt" entry. HashMap length is a u64; PathBuf is a
+        // length-prefixed string; SystemTime is {secs_since_epoch, nanos}.
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u64.to_le_bytes());
+        let key = b"test.txt";
+        data.extend_from_slice(&(key.len() as u64).to_le_bytes());
+        data.extend_from_slice(key);
+        data.extend_from_slice(&(key.len() as u64).to_le_bytes());
+        data.extend_from_slice(key);
+        data.extend_from_slice(&42u64.to_le_bytes());
+        data.extend_from_slice(&1_700_000_000u64.to_le_bytes());
+        data.extend_from_slice(&0u32.to_le_bytes());
+
+        let temp_dir = TempDir::new().unwrap();
+        let metadata_file = temp_dir.path().join("metadata.bin");
+        fs::write(&metadata_file, data).unwrap();
+
+        let loaded = metadata::IndexMetadata::load(&metadata_file).unwrap();
+        assert_eq!(loaded.file_count(), 1);
+        assert!(loaded
+            .list_files()
+            .any(|path| path.as_os_str() == "test.txt"));
+    }
 }
