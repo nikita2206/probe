@@ -16,13 +16,21 @@ This file provides guidance to coding agents working in this repository.
 - `src/file_scanner.rs`: file discovery with `.gitignore` handling
 - `src/language_processor.rs`: abstraction for language-aware parsing
 - `src/languages/java.rs`: current Java-specific chunk extraction
+- `src/languages/fallback.rs`: whole-file indexer used when no specialized processor exists
 
 ### Key Design Notes
 - Index state lives under `.probe/` in the target project root.
 - Incremental indexing metadata is stored in `metadata.bin`.
 - Project config is read from `probe.yml`.
 - User config is read from `~/.probe/config.yaml`.
-- Java is the only language with AST-aware chunking today; unsupported languages fall back to plain text indexing with context lines.
+- Java is the only language with AST-aware chunking today. Every other text file
+  (including unknown extensions and extensionless names such as `Makefile`) is
+  indexed by `FallbackProcessor` as a single whole-file chunk. Search extracts
+  highlighted context lines from that chunk.
+- Docs live under `docs/`. `docs/snapshot/` is rewritten to match the current
+  system; `docs/tickets/` captures why/how at the moment a feature is built and
+  is not rewritten later. See `docs/README.md`. New user-visible capabilities
+  should ship with a ticket and any snapshot pages they affect.
 
 ## Development Commands
 
@@ -88,23 +96,27 @@ Do not batch large unverified edits and only test at the end.
 
 ### Test Layout
 - `src/languages/tests/java_test.rs`: unit tests for Java chunk extraction and declaration/content boundaries
+- `src/languages/tests/fallback_test.rs`: unit tests for the fallback processor and CodeChunker routing
 - `tests/integration_tests.rs`: end-to-end CLI coverage using `assert_cmd`, temporary directories, and copied fixture projects
 - `tests/test_java_records.rs`: integration-style regression tests for Java record search behavior
 - `tests/test_java_interface_methods.rs`: integration-style regression tests for Java interface method indexing/search
-- `tests/test_unsupported_languages.rs`: fallback indexing/search behavior for unsupported languages such as Python and JavaScript
+- `tests/test_unsupported_languages.rs`: fallback indexing/search against the shared mixed-type corpus
 - `tests/test_stemming_and_config.rs`: direct `SearchEngine` coverage for stemming and config loading
 - `tests/test_search_query_processing.rs`: direct `SearchIndex` coverage for snippet generation and query parsing behavior
-- `tests/test_data/`: fixture projects and source files copied into temp directories during tests
+- `tests/test_data/`: fixture projects copied into temp directories during tests
+- `tests/test_data/corpus/`: one mixed-type tree (Java, Python, JS, Go, Ruby, Markdown, YAML, Makefile, Dockerfile, plain text) reused by fallback end-to-end tests
 
 ### Integration Test Details
 - Integration tests are standard Rust integration tests in `tests/`.
 - Most CLI tests use `assert_cmd::Command::cargo_bin(...)` to execute the built binary.
 - Fixture directories are copied into `tempfile::TempDir` so tests can rebuild indexes and mutate files without touching the repository.
+- Fallback end-to-end tests copy `tests/test_data/corpus/` and search that tree. They do not create source files inline.
 - `tests/integration_tests.rs` covers rebuilds, search results, `.gitignore`, incremental updates, `stats`, help output, and filetype filtering.
 - Java-specific integration regressions live in dedicated files rather than in the main integration target.
 
 ### How To Choose What To Run
 - Parser or chunking changes: run `cargo test java_test -- --nocapture` and the affected Java integration tests.
+- Fallback indexer / unknown file type changes: run `cargo test fallback_test -- --nocapture` and `cargo test --test test_unsupported_languages`.
 - Search/index behavior changes: run the relevant test in `tests/integration_tests.rs` plus `cargo test --test integration_tests`.
 - Snippet/query logic changes: run `cargo test test_search_query_processing -- --nocapture`.
 - Config or stemming changes: run `cargo test test_stemming_and_config -- --nocapture`.

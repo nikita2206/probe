@@ -5,16 +5,17 @@ use std::path::Path;
 // Re-export from language_processor for now to avoid circular imports
 pub use crate::language_processor::{utils, ChunkType, CodeChunk, LanguageProcessor};
 
-// Import Java language processor only
+use crate::languages::fallback::FallbackProcessor;
 use crate::languages::java::JavaProcessor;
 
 pub struct CodeChunker {
     processors: HashMap<String, Box<dyn LanguageProcessor>>,
+    fallback: Box<dyn LanguageProcessor>,
 }
 
 impl CodeChunker {
     pub fn new() -> Result<Self> {
-        let processors = vec![Box::new(JavaProcessor::new()?)]
+        let processors = vec![Box::new(JavaProcessor::new()?) as Box<dyn LanguageProcessor>]
             .into_iter()
             .flat_map(|processor| {
                 processor
@@ -25,9 +26,15 @@ impl CodeChunker {
             })
             .collect();
 
-        let chunker = Self { processors };
+        Ok(Self {
+            processors,
+            fallback: Box::new(FallbackProcessor::new()),
+        })
+    }
 
-        Ok(chunker)
+    /// True when a specialized (non-fallback) processor owns this file's extension.
+    pub fn has_specialized_processor(&self, file_path: &Path) -> bool {
+        Self::processor_key(file_path).is_some_and(|ext| self.processors.contains_key(ext))
     }
 
     pub fn chunk_code_for_indexing(
@@ -35,25 +42,17 @@ impl CodeChunker {
         file_path: &Path,
         content: &str,
     ) -> Result<Vec<CodeChunk>> {
-        let extension = file_path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .unwrap_or("");
-
-        if let Some(processor) = self.processors.get_mut(extension) {
-            processor.chunk_code(content)
-        } else if !content.trim().is_empty() {
-            Ok(vec![CodeChunk {
-                start_line: 0,
-                end_line: content.lines().count().saturating_sub(1),
-                chunk_type: ChunkType::Other,
-                name: "file".to_string(),
-                content: content.to_string(),
-                declaration: "".to_string(),
-            }])
-        } else {
-            Ok(vec![])
+        if let Some(ext) = Self::processor_key(file_path) {
+            if let Some(processor) = self.processors.get_mut(ext) {
+                return processor.chunk_code(content);
+            }
         }
+
+        self.fallback.chunk_code(content)
+    }
+
+    fn processor_key(file_path: &Path) -> Option<&str> {
+        file_path.extension().and_then(|ext| ext.to_str())
     }
 }
 

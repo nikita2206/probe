@@ -6,6 +6,7 @@ It runs locally on your machine with no servers or dependencies, using full-text
 ## Features
 
 - **Full-text search** - Better relevance scoring than simple text matching
+- **Any text file** - Specialized Java chunking, plus a fallback indexer so Python, JS, Markdown, YAML, Makefiles, and other text files are still searchable
 - **ML-powered reranking** - Reranking language model boosts more relevant results
 - **Works offline** - No servers, APIs, or other dependencies (after the reranker model is downloaded from HuggingFace)
 - **Respects gitignore** - Skips ignored files and binary files automatically
@@ -106,7 +107,7 @@ probe --dir ~/code/my-project "function"
 
 The index is stored in a `.probe/` directory in your project root and is automatically managed.
 
-For details on search scoring, see [SCORING_GUIDE.md](SCORING_GUIDE.md). For query syntax, see [Tantivy's query documentation](https://docs.rs/tantivy/latest/tantivy/query/index.html).
+For details on search scoring, see [SCORING_GUIDE.md](SCORING_GUIDE.md). For query syntax, see [Tantivy's query documentation](https://docs.rs/tantivy/latest/tantivy/query/index.html). Architecture, indexing, and language-processor snapshots live in [docs/](docs/).
 
 ## Configuration
 
