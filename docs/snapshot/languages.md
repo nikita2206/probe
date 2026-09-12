@@ -44,4 +44,4 @@ sent to fallback, even if the Java parser extracts nothing useful.
 ## Tests that lock this in
 
 - `src/languages/tests/fallback_test.rs` — processor + routing
-- `tests/test_unsupported_languages.rs` — CLI search across fallback file types
+- `tests/test_unsupported_languages.rs` — CLI search against `tests/test_data/corpus/`

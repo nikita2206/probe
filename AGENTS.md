@@ -100,15 +100,17 @@ Do not batch large unverified edits and only test at the end.
 - `tests/integration_tests.rs`: end-to-end CLI coverage using `assert_cmd`, temporary directories, and copied fixture projects
 - `tests/test_java_records.rs`: integration-style regression tests for Java record search behavior
 - `tests/test_java_interface_methods.rs`: integration-style regression tests for Java interface method indexing/search
-- `tests/test_unsupported_languages.rs`: fallback indexing/search behavior for unsupported languages such as Python and JavaScript
+- `tests/test_unsupported_languages.rs`: fallback indexing/search against the shared mixed-type corpus
 - `tests/test_stemming_and_config.rs`: direct `SearchEngine` coverage for stemming and config loading
 - `tests/test_search_query_processing.rs`: direct `SearchIndex` coverage for snippet generation and query parsing behavior
-- `tests/test_data/`: fixture projects and source files copied into temp directories during tests
+- `tests/test_data/`: fixture projects copied into temp directories during tests
+- `tests/test_data/corpus/`: one mixed-type tree (Java, Python, JS, Go, Ruby, Markdown, YAML, Makefile, Dockerfile, plain text) reused by fallback end-to-end tests
 
 ### Integration Test Details
 - Integration tests are standard Rust integration tests in `tests/`.
 - Most CLI tests use `assert_cmd::Command::cargo_bin(...)` to execute the built binary.
 - Fixture directories are copied into `tempfile::TempDir` so tests can rebuild indexes and mutate files without touching the repository.
+- Fallback end-to-end tests copy `tests/test_data/corpus/` and search that tree. They do not create source files inline.
 - `tests/integration_tests.rs` covers rebuilds, search results, `.gitignore`, incremental updates, `stats`, help output, and filetype filtering.
 - Java-specific integration regressions live in dedicated files rather than in the main integration target.
 
