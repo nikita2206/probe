@@ -303,3 +303,118 @@ Line 10
         "Should contain the matched term in output"
     );
 }
+
+#[test]
+fn test_fallback_indexes_markdown_yaml_and_extensionless_files() {
+    let temp_dir = TempDir::new().unwrap();
+
+    fs::write(
+        temp_dir.path().join("NOTES.md"),
+        "# Release checklist\n\nRemember to bump the globalsearchtoken docs.\n",
+    )
+    .unwrap();
+    fs::write(
+        temp_dir.path().join("service.yaml"),
+        "kind: Service\nmetadata:\n  name: globalsearchtoken\n",
+    )
+    .unwrap();
+    fs::write(
+        temp_dir.path().join("Makefile"),
+        "probe:\n\techo globalsearchtoken\n",
+    )
+    .unwrap();
+    fs::write(
+        temp_dir.path().join("Dockerfile"),
+        "FROM rust:1.85\nRUN echo globalsearchtoken\n",
+    )
+    .unwrap();
+
+    let rebuild = Command::cargo_bin("probe")
+        .unwrap()
+        .current_dir(temp_dir.path())
+        .arg("rebuild")
+        .assert()
+        .success();
+    let rebuild_out = String::from_utf8_lossy(&rebuild.get_output().stdout);
+    assert!(
+        rebuild_out.contains("4 files indexed"),
+        "expected four fallback-indexed files, got: {rebuild_out}"
+    );
+
+    let output = Command::cargo_bin("probe")
+        .unwrap()
+        .current_dir(temp_dir.path())
+        .args(["globalsearchtoken", "--no-rerank", "-n", "10"])
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&output.get_output().stdout);
+    assert!(
+        stdout.contains("NOTES.md"),
+        "markdown should be searchable:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("service.yaml"),
+        "yaml should be searchable:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("Makefile"),
+        "extensionless Makefile should be searchable:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("Dockerfile"),
+        "extensionless Dockerfile should be searchable:\n{stdout}"
+    );
+}
+
+#[test]
+fn test_specialized_java_still_preferred_over_fallback() {
+    let temp_dir = TempDir::new().unwrap();
+
+    fs::write(
+        temp_dir.path().join("Greeter.java"),
+        r#"class Greeter {
+    void sayHello() {
+        System.out.println("hello from specialized indexer");
+    }
+}
+"#,
+    )
+    .unwrap();
+    fs::write(
+        temp_dir.path().join("notes.txt"),
+        "hello from fallback indexer\n",
+    )
+    .unwrap();
+
+    Command::cargo_bin("probe")
+        .unwrap()
+        .current_dir(temp_dir.path())
+        .arg("rebuild")
+        .assert()
+        .success();
+
+    let java_output = Command::cargo_bin("probe")
+        .unwrap()
+        .current_dir(temp_dir.path())
+        .args(["sayHello", "--no-rerank"])
+        .assert()
+        .success();
+    let java_stdout = String::from_utf8_lossy(&java_output.get_output().stdout);
+    assert!(
+        java_stdout.contains("Greeter.java"),
+        "specialized Java indexer must still match method names:\n{java_stdout}"
+    );
+
+    let fallback_output = Command::cargo_bin("probe")
+        .unwrap()
+        .current_dir(temp_dir.path())
+        .args(["fallback indexer", "--no-rerank"])
+        .assert()
+        .success();
+    let fallback_stdout = String::from_utf8_lossy(&fallback_output.get_output().stdout);
+    assert!(
+        fallback_stdout.contains("notes.txt"),
+        "fallback indexer must still search non-Java files:\n{fallback_stdout}"
+    );
+}
