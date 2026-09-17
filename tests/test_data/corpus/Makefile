@@ -1,0 +1,2 @@
+probe:
+	echo globalsearchtoken
